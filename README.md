@@ -97,5 +97,3 @@ For further information, please see the documentation created by JavaDoc, or ref
 ## Paper
 
 J. Gedeon, N. Himmelmann, P. Felka, F. Herrlich, M. Stein, M. Mühlhäuser. "vStore: A Context-Aware Framework for Mobile Micro-Storage at the Edge" [[Download here]](https://www.tk.informatik.tu-darmstadt.de/fileadmin/user_upload/Group_TK/filesDownload/Published_Papers/JG/gedeon_vstore.pdf)
-
-
