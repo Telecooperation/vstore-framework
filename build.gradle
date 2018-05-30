@@ -7,7 +7,7 @@ repositories {
 }
 
 jar {
-    baseName = 'vstoreframework'
+    baseName = 'vstore-framework'
     version = '0.0.1'
 }
 
