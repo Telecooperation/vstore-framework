@@ -1,4 +1,4 @@
-package vstoreframework.communication.events;
+package vstoreframework.communication.download.events;
 
 public class MetadataDownloadFailedEvent {
 

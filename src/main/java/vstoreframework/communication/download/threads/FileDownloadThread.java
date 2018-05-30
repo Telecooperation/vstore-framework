@@ -21,12 +21,15 @@ import okio.Okio;
 import vstoreframework.communication.ProgressResponseBody;
 import vstoreframework.communication.download.PersistentDownloadList;
 import vstoreframework.communication.download.ProgressListener;
-import vstoreframework.communication.events.DownloadFailedEvent;
-import vstoreframework.communication.events.DownloadProgressEvent;
-import vstoreframework.communication.events.MetadataDownloadFailedEvent;
-import vstoreframework.communication.events.MetadataEvent;
+import vstoreframework.communication.download.events.DownloadFailedEvent;
+import vstoreframework.communication.download.events.DownloadProgressEvent;
+import vstoreframework.communication.download.events.DownloadedFileReadyEvent;
+import vstoreframework.communication.download.events.MetadataDownloadFailedEvent;
+import vstoreframework.communication.download.events.MetadataEvent;
 import vstoreframework.error.ErrorMessages;
+import vstoreframework.exceptions.VStoreException;
 import vstoreframework.file.MetaData;
+import vstoreframework.file.VStoreFile;
 import vstoreframework.logging.LogHandler;
 import vstoreframework.node.NodeInfo;
 import vstoreframework.utils.FrameworkUtils;
@@ -57,7 +60,7 @@ public class FileDownloadThread extends Thread {
     {
 		if(fileUuid == null || fileUuid.equals("") || node == null || targetDirectory == null)
     	{
-    		throw new Exception(ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+    		throw new Exception(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
     	}
     	if(requestId == null || requestId.equals("")) 
     	{ 
@@ -158,7 +161,11 @@ public class FileDownloadThread extends Thread {
 		try (Response response = client.newCall(request).execute()) 
 		{
 			//Check if we received a wrong http status code
-			if (!response.isSuccessful()) throw new IOException("Unexpected response code: " + response);
+			if (!response.isSuccessful()) 
+			{ 
+				downloadFailed(new IOException("Unexpected response code: " + response)); 
+				return;
+			}
 			
 			BufferedSource binFile = response.body().source();
 			if (binFile != null) 
@@ -175,7 +182,8 @@ public class FileDownloadThread extends Thread {
 				} 
 				catch (URISyntaxException e) 
 				{
-					e.printStackTrace();
+					downloadFailed(e);
+					return;
 					//Should never happen!
 				}
 
@@ -183,9 +191,18 @@ public class FileDownloadThread extends Thread {
 		    	PersistentDownloadList.deleteFileDownloading(fileUuid);
 		    	
 				//Publish event about the finished download
-                DownloadProgressEvent evt =
-                        new DownloadProgressEvent(fileUuid, requestId, 100, true, uri, meta);
-                EventBus.getDefault().postSticky(evt);
+		    	DownloadedFileReadyEvent evt = new DownloadedFileReadyEvent();
+		    	try 
+		    	{
+					evt.file = new VStoreFile(fileUuid, outputFile, meta);
+				} 
+		    	catch (VStoreException e) 
+		    	{
+					downloadFailed(e);
+					return;
+				} 
+		    	evt.requestId = requestId;
+		    	EventBus.getDefault().postSticky(evt);
                 
                 //Log that the download is done
                 LogHandler.logDownloadDone(fileUuid, false);

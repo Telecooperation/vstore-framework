@@ -10,15 +10,19 @@ import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 
+import org.greenrobot.eventbus.EventBus;
+
 import vstoreframework.communication.CommunicationManager;
 import vstoreframework.communication.RequestFilesMatchingContextThread;
 import vstoreframework.communication.download.Downloader;
-import vstoreframework.communication.events.DownloadFailedEvent;
-import vstoreframework.communication.events.DownloadProgressEvent;
-import vstoreframework.communication.events.MetadataEvent;
+import vstoreframework.communication.download.events.DownloadFailedEvent;
+import vstoreframework.communication.download.events.DownloadProgressEvent;
+import vstoreframework.communication.download.events.DownloadedFileReadyEvent;
+import vstoreframework.communication.download.events.MetadataEvent;
 import vstoreframework.communication.upload.Uploader;
 import vstoreframework.config.ConfigManager;
 import vstoreframework.context.ContextDescription;
+import vstoreframework.context.ContextFile;
 import vstoreframework.context.ContextFilter;
 import vstoreframework.context.SearchContextDescription;
 import vstoreframework.db.DBHelper;
@@ -31,6 +35,8 @@ import vstoreframework.exceptions.VStoreException;
 import vstoreframework.file.VFileType;
 import vstoreframework.file.VStoreFile;
 import vstoreframework.file.events.FileDeletedEvent;
+import vstoreframework.file.events.FilesReadyEvent;
+import vstoreframework.file.threads.FetchFilesFromDBThread;
 import vstoreframework.logging.LogHandler;
 import vstoreframework.logging.LoggingService;
 import vstoreframework.matching.FileNodeMapper;
@@ -60,31 +66,17 @@ public class VStore {
     private static ContextDescription mCurrentContext;
         
     /**
-     * Private constructor for creating a new VStore object. It initializes needed elements:
-     * - VStoreConfig
-     * - DBHelper for creating necessary databases if they are not present yet.
+     * Private constructor for creating a new VStore object. 
+     * It initializes all components necessary for operation of the
+     * framework (VStoreConfig, DBHelper).
      */
     private VStore() throws VStoreException {
-        //Initialize instance of db access
-    	try 
-    	{
-			DBHelper.getInstance();
-		} 
-    	catch (DatabaseException e) 
-    	{
-			e.printStackTrace();
-			throw new VStoreException(ErrorMessages.DB_LOCAL_ERROR);
-		}
-		
-        //Initialize the current context description
-        mCurrentContext = new ContextDescription();
-        
-        //TODO: Replace with mandatory binding from user application
-        //which has to provide context by calling a method
-        //provideContext();
-
         //Start the logging thread
         LoggingService.getThread().start();
+        
+        //Initialize instance of db access
+    	initializeDatabase();
+        initializeContext();
 
         //Initialize the vStore configuration instance
         //TODO: Change parameters according to user input 
@@ -93,16 +85,13 @@ public class VStore {
         
         //Initialize the vStore FileNodeMapper
         FileNodeMapper.getMapper();
-
-        //Clean temporary files created earlier
-        //FileUtils.clearTmpDirs();
     }
 
     /**
-     * Gets the instance of the VStore framework (singleton).
+     * Gets the instance of the vStore framework.
      * 
-     * @return The instance of VStore framework.
-     * @throws VStoreException 
+     * @return The instance of vStore framework.
+     * @throws VStoreException In case some error occured during instantiation.
      */
     public static VStore getInstance() throws VStoreException {
          /**
@@ -114,6 +103,29 @@ public class VStore {
         }
         return mInstance;
     }
+    
+    private void initializeDatabase() throws VStoreException {
+    	try 
+    	{
+			DBHelper.getInstance();
+		} 
+    	catch (DatabaseException e) 
+    	{
+			e.printStackTrace();
+			throw new VStoreException(ErrorMessages.DB_LOCAL_ERROR);
+		}
+    }
+    
+    private void initializeContext() {
+    	//Initialize the current context description
+        mCurrentContext = new ContextDescription();
+        //Check if we have persistent context in the context file
+        ContextDescription tmpCtx = ContextFile.getContext();
+        if(tmpCtx != null)
+        {
+        	mCurrentContext = tmpCtx;
+        }
+    }
 
     /**
      * Returns the current configuration containing application-defined settings.
@@ -124,77 +136,61 @@ public class VStore {
     public ConfigManager getConfig() {
         return ConfigManager.getInstance(false, null);
     }
+    
+    /**
+     * Use this method to provide new context information to the framework.
+     * If the new information should be persistent after a restart of the
+     * framework, {@link persistContext(true)} should be called.
+     * 
+     * @param context The new context information
+     */
+    public void provideContext(ContextDescription context) {
+    	mCurrentContext = context;
+    }
+    
+    /**
+     * Use this method to make the currently configured usage context 
+     * persistent after a restart of the framework.
+     * 
+     * @param makePersistent True if the context should be persistent.
+     *                       False if you want to undo this.
+     */
+    public void persistContext(boolean makePersistent) {
+    	if(makePersistent && mCurrentContext != null)
+    	{
+    		ContextFile.write(mCurrentContext.getJson());
+    		return;
+    	}
+    	if(!makePersistent) 
+    	{ 
+    		ContextFile.clearContext(); 
+		}
+    }
 
     /**
-     * This method returns the current usage context based on data collected 
-     * by the AWARE framework as a Context Monitor.
-     * If you want to refresh it, use {@link VStore#updateUsageContext()}
+     * This method returns the usage context currently used for matching.
+     * If you want to refresh it, use {@link VStore#provideContext()}
      * 
      * @return A ContextDescription-object containing the current usage 
      *         context description
      */
-    public ContextDescription getCurrentContext() {
-        
-        /*SharedPreferences sharedPref = c.getApplicationContext()
-          	.getSharedPreferences(CONTEXT_KEY_VALUE_FILE, Context.MODE_PRIVATE);
-        if(sharedPref != null) {
-            //LOCATION: Read most recent location from SharedPrefs
-            String currentLocStr = sharedPref
-            	.getString(CONTEXT_CURRENT_LOCATION_JSON_KEY, null);
-            if (currentLocStr != null) {
-                mCurrentContext.setLocationContext(new VLocation(currentLocStr));
-            } else {
-                mCurrentContext.clearLocationContext();
-            }
-
-            //PLACES: Read current nearby places from SharedPrefs
-            String currentPlacesStr = sharedPref.getString(CONTEXT_PLACES_JSON_KEY, null);
-            if(currentPlacesStr != null) {
-                if (mCurrentContext.getPlacesList() != null) {
-                    mCurrentContext.getPlacesList().clear();
-                }
-                mCurrentContext.setPlacesContext(new VPlaces(currentPlacesStr));
-                mCurrentContext.getPlaces()
-                	.calculateDistancesFrom(mCurrentContext.getLocationContext());
-            } else {
-                mCurrentContext.clearPlacesContext();
-            }
-
-            //ACTIVITY: Read current activity from SharedPrefs
-            String currentActivityStr 
-            	= sharedPref.getString(CONTEXT_ACTIVITY_JSON_KEY, null);
-            if(currentActivityStr != null) {
-                mCurrentContext.setActivityContext(new VActivity(currentActivityStr));
-            } else {
-                mCurrentContext.clearActivityContext();
-            }
-
-            //NOISE: Read current environment noise from SharedPrefs
-            String noiseStr = sharedPref.getString(CONTEXT_NOISE_JSON_KEY, null);
-            if(noiseStr != null) {
-                mCurrentContext.setNoiseContext(new VNoise(noiseStr));
-            } else {
-                mCurrentContext.clearNoiseContext();
-            }
-
-            //NETWORK: Read current network context from SharedPrefs
-            String networkStr = sharedPref.getString(CONTEXT_NETWORK_JSON_KEY, null);
-            if(networkStr != null) {
-                mCurrentContext.setNetworkContext(new VNetwork(networkStr));
-            } else {
-                mCurrentContext.clearNetworkContext();
-            }
-        }
-
-        mCurrentContext.setDayOfWeek(ContextUtils.getDayOfWeek());*/
+    public final ContextDescription getCurrentContext() {
         return mCurrentContext;
     }
-
+    
     /**
-     * Use this method to provide the framework with new context.
+     * This method clears the current usage context and resets it 
+     * to an empty state.
+     * 
+     * @param keepPersistent If set to true, the context currently stored
+     * persistently (if any) will not be deleted. 
      */
-    public void newContext(ContextDescription newContext) {
-        
+    public void clearCurrentContext(boolean keepPersistent) {
+        mCurrentContext = new ContextDescription();
+        if(!keepPersistent)
+        {
+        	ContextFile.clearContext();
+        }
     }
 
     /**
@@ -225,7 +221,7 @@ public class VStore {
         if(fileUri == null || fileUri.equals("") 
         		|| deviceId == null || deviceId.equals("")) 
         {
-            throw new StoreException(ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+            throw new StoreException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         
         File file = new File(fileUri);
@@ -319,7 +315,7 @@ public class VStore {
 			}
             //Schedule job for background upload
             Uploader up = Uploader.getUploader();
-            up.enqueueUpload(f, deviceId);
+            up.enqueueUpload(f);
             up.startUploads();
         } 
         else 
@@ -358,7 +354,7 @@ public class VStore {
     public boolean deleteFile(String fileUUID) {
         if(fileUUID == null || fileUUID.equals("")) {
             throw new RuntimeException(
-            		ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+            		ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         try
         {
@@ -377,64 +373,53 @@ public class VStore {
     }
 
     /**
-     * Initializes a job in background to fetch files from the database.
-     * The following event will notify you when done:
-     * - FilesReadyEvent
-     *
-     * @param resultOrdering Should be a constant from DBResultOrdering
+     * Can be used to fetch a list of all files uploaded (or currently uploading) from this device.
+     * Results are published in the {@link FilesReadyEvent}.
+     * 
+     * @param resultOrdering The order in which to fetch the files.
      *                       (see {@link DBResultOrdering}).
      * @param onlyPending If true, only files that are pending to upload 
      * 				      will be returned.
      * @param onlyPrivate If true, only files that are marked private 
      *                    will be returned.
      */
-    public void getMyFiles(int resultOrdering, boolean onlyPending, 
+    public void getLocalFileList(DBResultOrdering resultOrdering, boolean onlyPending, 
     		boolean onlyPrivate) 
     {
-        
-    	//TODO
-    	
-    	//Get JobManager
-        /*VJobManager.setContext(c.getApplicationContext());
-        JobManager jobManager = VJobManager.getJobManager();
-        if(jobManager != null) {
-            switch (resultOrdering) {
-                case DBResultOrdering.NEWEST_FIRST:
-                    jobManager.addJobInBackground(
-                            new FetchFilesFromDBJob(
-                                    c,
+    	FetchFilesFromDBThread fT;
+    	switch (resultOrdering) 
+    	{
+            case NEWEST_FIRST:
+            	fT = new FetchFilesFromDBThread(
                                     FileDBHelper.SORT_BY_DATE_DESCENDING,
                                     onlyPending,
-                                    onlyPrivate));
-                    break;
-                case DBResultOrdering.OLDEST_FIRST:
-                    jobManager.addJobInBackground(
-                            new FetchFilesFromDBJob(
-                                    FileDBHelper.SORT_BY_DATE_ASCENDING,
-                                    onlyPending,
-                                    onlyPrivate));
-                    break;
-                default:
-                    jobManager.addJobInBackground(
-                            new FetchFilesFromDBJob(
-                                    FileDBHelper.SORT_BY_DATE_DESCENDING,
-                                    onlyPending,
-                                    onlyPrivate));
-                    break;
-            }
-        }*/
+                                    onlyPrivate);
+                break;
+            case OLDEST_FIRST:
+            	fT = new FetchFilesFromDBThread(
+                        FileDBHelper.SORT_BY_DATE_ASCENDING,
+                        onlyPending,
+                        onlyPrivate);
+                break;
+            default:
+            	fT = new FetchFilesFromDBThread(
+                        FileDBHelper.SORT_BY_DATE_ASCENDING,
+                        onlyPending,
+                        onlyPrivate);
+                break;
+        }
+    	fT.start();
     }
 
     /**
      * Fetches a list of all uploads currently pending.
-     * The following event will notify you when the list is ready:
-     * - FilesReadyEvent
+     * Results are published in the {@link FilesReadyEvent}.
      *
-     * @param resultOrdering Should be a constant from DBResultOrdering
-     *                       (e.g. DBResultOrdering.NEWEST_FIRST)
+     * @param resultOrdering The order in which to return the files (e.g. newest or oldest first)
+     *                       (see {@link DBResultOrdering}).
      */
-    public void getPendingUploads(int resultOrdering) {
-        getMyFiles(resultOrdering, true, false);
+    public void getPendingUploads(DBResultOrdering resultOrdering) {
+    	getLocalFileList(resultOrdering, true, false);
     }
 
     /**
@@ -443,7 +428,7 @@ public class VStore {
      * 
      * @return The number of files to upload, or -1 if something went wrong.
      */
-    public int getNumberOfPendingUploads() {
+    public int getPendingUploadCount() {
     	try
     	{
 	        FileDBHelper dbHelper = new FileDBHelper();
@@ -473,12 +458,12 @@ public class VStore {
      *        the replies when they come in with the event.
      * @return True, if the request jobs have been started. Returns false, if not.
      */
-    public boolean requestFilesMatchingContext(ContextDescription usageContext,
+    public boolean getFilesMatchingContext(ContextDescription usageContext,
     		ContextFilter filter, String requestId) 
     {
         if(usageContext == null) 
         {
-            throw new RuntimeException(ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+            throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         if(requestId == null || requestId.equals("")) 
         {
@@ -521,7 +506,7 @@ public class VStore {
      */
     public String getMimetypeUriForFile(String uuid) {
         if(uuid == null) {
-            throw new RuntimeException(ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+            throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         
         String nodeId = FileNodeMapper.getMapper().getNodeId(uuid);
@@ -533,7 +518,7 @@ public class VStore {
     }
 
     /**
-     * This method provides you with the url to request metadata for the file.
+     * This method provides the url to request metadata for a file.
      * 
      * @param uuid The UUID of the file to request the type for.
      * @param fullMetadata If set to true, the uri for requesting full metadata 
@@ -543,8 +528,9 @@ public class VStore {
      * @return The uri.
      */
     public String getMetadataUriForFile(String uuid, boolean fullMetadata) {
-        if(uuid == null || uuid.equals("")) {
-            throw new RuntimeException(ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+        if(uuid == null || uuid.equals("")) 
+        {
+            throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         String nodeId = FileNodeMapper.getMapper().getNodeId(uuid);
         if(nodeId.equals("")) { return null; }
@@ -568,7 +554,7 @@ public class VStore {
     public boolean getFullFile(final String uuid, File dir) {
         if(uuid == null) 
         {
-            throw new RuntimeException(ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+            throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         final String requestId = UUID.randomUUID().toString();
 
@@ -589,11 +575,12 @@ public class VStore {
         }
         if(f != null) 
         {
-            //Own file found locally on device. Provide it
-        	//TODO
-            //Downloader.provideFile(uuid, requestId, 
-            //		new File(f.getFullPath()), f.getMetaData());
-            //return true;
+        	//File found locally.
+        	DownloadedFileReadyEvent evt = new DownloadedFileReadyEvent();
+        	evt.file = f;
+        	evt.requestId = requestId;
+        	EventBus.getDefault().postSticky(evt);
+            return true;
         }
 
         //File not found locally.
@@ -669,13 +656,5 @@ public class VStore {
             return false;
         }
         return VFileType.isMimeTypeSupported(mimetype);
-    }
-
-    /**
-     * This method clears the current usage context. And resets it to an empty state.
-     */
-    public void clearCurrentContext() {
-        mCurrentContext = new ContextDescription();
-        //TODO
     }
 }

@@ -22,12 +22,8 @@ import vstoreframework.context.types.place.VSinglePlace;
  * Not every type of context has to be available in every situation, so you should better check if
  * it is null before using it.
  */
+@SuppressWarnings("serial")
 public class ContextDescription implements Serializable {
-    /**
-	 * 
-	 */
-	private static final long serialVersionUID = 5432176280207015043L;
-	
 	private VLocation mLocation;
     private VPlaces mPlaces;
     private VActivity mActivity;

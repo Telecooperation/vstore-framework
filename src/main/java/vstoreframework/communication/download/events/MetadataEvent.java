@@ -1,4 +1,4 @@
-package vstoreframework.communication.events;
+package vstoreframework.communication.download.events;
 
 import vstoreframework.file.MetaData;
 

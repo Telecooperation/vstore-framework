@@ -32,7 +32,7 @@ public class RuleManager {
      */
     public static void storeNewRule(VStoreRule rule) {
         if(rule == null) {
-            throw new RuntimeException(ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+            throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         RulesDBHelper rulesDBHelper;
 		try 
@@ -54,7 +54,7 @@ public class RuleManager {
     public static void deleteRule(String ruleUUID) {
         if(ruleUUID == null) 
         {
-            throw new RuntimeException(ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+            throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         try 
         {

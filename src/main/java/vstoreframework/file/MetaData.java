@@ -21,6 +21,8 @@ public class MetaData implements Serializable {
     private String mFileExtension;
     private Date mDateCreation;
     private NodeType mNodeType;
+    
+    private boolean mIsPrivate;
 
     /**
      * Constructs a new metadata object.
@@ -38,25 +40,17 @@ public class MetaData implements Serializable {
      * @param json
      */
     public MetaData(JSONObject jMetaData) {
-    	String uuid = (String)jMetaData.get("uuid");
-        String extension = (String)jMetaData.get("extension");
-        String filename;
+    	mUUID = (String)jMetaData.get("uuid");
+    	setFileExtension((String)jMetaData.get("extension"));
         if(jMetaData.containsKey("descriptiveName")) {
-            filename = (String)jMetaData.get("descriptiveName");
+            mFilename = (String)jMetaData.get("descriptiveName");
         } else {
-            filename = uuid + "." + extension;
+            mFilename = mUUID + "." + mFileExtension;
         }
-        long filesize = (long)jMetaData.get("filesize");
-        String mimetype = (String)jMetaData.get("mimetype");
-        long creationTimestamp = (long)jMetaData.get("creationTimestamp");
-        
-        //Return MetaData object
-        MetaData meta = new MetaData(
-                filename,
-                filesize,
-                mimetype);
-        meta.setCreationDate(creationTimestamp);
-        meta.setFileExtension(extension);
+        mFilesize = (long)jMetaData.get("filesize");
+        mMimeType = (String)jMetaData.get("mimetype");
+        setCreationDate((long)jMetaData.get("creationTimestamp"));
+        mIsPrivate = (boolean)jMetaData.get("isPrivate");
     }
 
     /**
@@ -144,6 +138,10 @@ public class MetaData implements Serializable {
     public NodeType getNodeType() {
         return mNodeType;
     }
+    
+    public boolean isPrivate() {
+    	return mIsPrivate;
+    }
 
     /**
      * Sets the type of node for this file metadata.
@@ -155,6 +153,10 @@ public class MetaData implements Serializable {
     
     public void setFileSize(long size) {
     	mFilesize = size;
+    }
+    
+    public void setIsPrivate(boolean newValue) {
+    	mIsPrivate = newValue;
     }
     
     /**
@@ -172,6 +174,7 @@ public class MetaData implements Serializable {
     	j.put("filesize", getFilesize());
     	j.put("mimetype", getMimeType());
     	j.put("creationTimestamp", getCreationDate().getTime());
+    	j.put("isPrivate", isPrivate());
         return j;
     }
 }

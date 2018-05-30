@@ -1,4 +1,4 @@
-package vstoreframework.communication.events;
+package vstoreframework.communication.upload.events;
 
 import java.io.Serializable;
 

@@ -3,9 +3,9 @@ package vstoreframework.communication.download;
 import java.io.File;
 import java.util.Map;
 
+import vstoreframework.communication.download.events.MetadataEvent;
 import vstoreframework.communication.download.threads.FileDownloadThread;
 import vstoreframework.communication.download.threads.MetadataDownloadThread;
-import vstoreframework.communication.events.MetadataEvent;
 import vstoreframework.config.ConfigManager;
 import vstoreframework.matching.FileNodeMapper;
 import vstoreframework.node.NodeInfo;

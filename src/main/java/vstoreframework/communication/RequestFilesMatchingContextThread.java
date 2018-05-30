@@ -36,7 +36,7 @@ public class RequestFilesMatchingContextThread extends Thread {
     public RequestFilesMatchingContextThread(String nodeUUID, SearchContextDescription usageContext, String requestId) throws Exception {
     	if(nodeUUID == null || nodeUUID.equals("") || requestId == null || requestId.equals("") || usageContext == null)
     	{
-    		throw new VStoreException(ErrorMessages.PARAMETERS_MOST_NOT_BE_NULL);
+    		throw new VStoreException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
     	}
     	
         mNodeId = nodeUUID;

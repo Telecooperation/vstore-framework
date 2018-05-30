@@ -1,4 +1,4 @@
-package vstoreframework.communication.events;
+package vstoreframework.communication.upload.events;
 
 /**
  * This event gets published once a single file is done uploading.
@@ -14,7 +14,7 @@ public class SingleUploadDoneEvent {
         mFileUUID = uuid;
     }
 
-    public String getUUID() {
+    public String getFileId() {
         return mFileUUID;
     }
 }

@@ -6,6 +6,8 @@ import java.io.Serializable;
 import java.util.Date;
 
 import vstoreframework.context.ContextDescription;
+import vstoreframework.error.ErrorMessages;
+import vstoreframework.exceptions.VStoreException;
 
 /**
  * This class provides a wrapper for files stored and retrieved by the Virtual Storage framework.
@@ -22,7 +24,6 @@ public class VStoreFile implements Serializable {
 
     private boolean mIsUploadPending;
     private boolean mIsUploadFailed;
-    private boolean mIsPrivate;
     
     private boolean mIsDeletePending;
 
@@ -60,12 +61,14 @@ public class VStoreFile implements Serializable {
      * @param uuid UUID of the file
      * @param f The file object
      * @param fileType The MIME type (should be from VFileType class)
-     * @param isUploadPending Set it to true if an upload is currently pending for this file.
+     * @param isUploadPending Set this to true if an upload is currently pending for this file.
+     * @param isPrivate Set this to true if the file is private.
      * @throws FileNotFoundException Will be thrown if file is not found.
      */
     public VStoreFile(String uuid, File f, String fileType,
                         boolean isUploadPending, boolean isPrivate)
-            throws FileNotFoundException {
+            throws FileNotFoundException 
+    {
         this(uuid,
                 f.getName(),
                 f.getParent(),
@@ -74,6 +77,21 @@ public class VStoreFile implements Serializable {
                 new Date(System.currentTimeMillis()),
                 isUploadPending,
                 isPrivate);
+    }
+    
+    public VStoreFile(String uuid, File f, MetaData meta) 
+    		throws VStoreException 
+    {
+    	if(uuid == null || uuid.equals("") || f == null || meta == null)
+    	{
+    		throw new VStoreException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
+    	}
+    	mUUID = uuid;
+    	mMeta = meta;
+    	mPath = f.getAbsolutePath();
+    	mIsUploadPending = false;
+    	mIsUploadFailed = false;
+    	mIsDeletePending = false;
     }
 
     /**
@@ -90,7 +108,8 @@ public class VStoreFile implements Serializable {
     public VStoreFile(String uuid, String descriptiveName, String path, 
     		String fileType, String fileExtension, Date creationDate, 
     		boolean isUploadPending, boolean isPrivate)
-            throws FileNotFoundException {
+            throws FileNotFoundException 
+    {
         
     	File f = new File(path + "/" + uuid + "." + fileExtension);
         if(!f.exists()) throw new FileNotFoundException();
@@ -99,12 +118,13 @@ public class VStoreFile implements Serializable {
         mPath = path;
         mIsUploadPending = isUploadPending;
         mIsUploadFailed = false;
-        mIsPrivate = isPrivate;
         
         mIsDeletePending = false;
 
         MetaData meta = new MetaData(descriptiveName, f.length(), fileType);
         meta.setFileExtension(fileExtension);
+        meta.setIsPrivate(isPrivate);
+        
         if (creationDate == null) 
         {
             creationDate = new Date(System.currentTimeMillis());
@@ -185,7 +205,10 @@ public class VStoreFile implements Serializable {
     /**
      * @return True, if this file was created and flagged as private.
      */
-    public boolean isPrivate() { return mIsPrivate; }
+    public boolean isPrivate() { 
+    	if(mMeta != null) return mMeta.isPrivate();
+    	else return false;
+	}
 
     /**
      * @return True, if this file was flagged for deletion.
@@ -232,7 +255,9 @@ public class VStoreFile implements Serializable {
      * Sets the private flag for this file.
      * @param isPrivate Set this to true, if the file is private.
      */
-    public void setPrivate(boolean isPrivate) { mIsPrivate = isPrivate; }
+    public void setPrivate(boolean isPrivate) { 
+    	if(mMeta != null) { mMeta.setIsPrivate(isPrivate); }
+	}
 
     /**
      * Sets the context description for this file

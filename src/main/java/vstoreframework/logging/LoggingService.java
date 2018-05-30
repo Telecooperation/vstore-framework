@@ -16,11 +16,12 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import okhttp3.MultipartBody;
+import okhttp3.MultipartBody.Builder;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
-import okhttp3.MultipartBody.Builder;
+import vstoreframework.context.Connectivity;
 import vstoreframework.logging.log_events.LogCancelLoggingEvent;
 import vstoreframework.logging.log_events.LogDownloadDoneEvent;
 import vstoreframework.logging.log_events.LogDownloadStartEvent;
@@ -30,7 +31,6 @@ import vstoreframework.logging.log_events.LogMatchingDoneEvent;
 import vstoreframework.logging.log_events.LogMatchingStartLoggingEvent;
 import vstoreframework.logging.log_events.LogUploadDoneEvent;
 import vstoreframework.node.NodeType;
-import vstoreframework.utils.Connectivity;
 import vstoreframework.utils.FrameworkUtils;
 
 /**

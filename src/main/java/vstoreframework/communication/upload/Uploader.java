@@ -1,48 +1,47 @@
 package vstoreframework.communication.upload;
 
-import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 
 import org.greenrobot.eventbus.EventBus;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
 import okhttp3.MultipartBody.Builder;
-import vstoreframework.communication.events.AllUploadsDoneEvent;
-import vstoreframework.communication.events.SingleUploadDoneEvent;
-import vstoreframework.communication.events.UploadFailedEvent;
-import vstoreframework.communication.events.UploadFailedPermanentlyEvent;
+import okhttp3.RequestBody;
+import vstoreframework.communication.upload.events.AllUploadsDoneEvent;
+import vstoreframework.communication.upload.events.SingleUploadDoneEvent;
+import vstoreframework.communication.upload.threads.FileUploadThread;
 import vstoreframework.db.table_helper.FileDBHelper;
+import vstoreframework.exceptions.DatabaseException;
 import vstoreframework.file.VStoreFile;
-import vstoreframework.logging.log_events.LogUploadDoneEvent;
 import vstoreframework.node.NodeManager;
+import vstoreframework.utils.FrameworkUtils;
 
 /**
- * This class wraps some functions for uploading.
+ * This class wraps functions for controlling and managing uploads.
+ * Each upload is started in an own thread, thus multiple uploads
+ * can occur in parallel.
  */
 public class Uploader {
 	public static final MediaType JSON
 		= MediaType.parse("application/json; charset=utf-8");
 	
 	private static Uploader mInstance;
-	private boolean uploadsRunning;
 	
-	private static int defaultBackoffMultiplier = 5;
-	
-	Queue<UploadQueueObject> requestQueue;
-	OkHttpClient httpClient;
+	HashMap<String, UploadQueueObject> uploadQueue;
+	HashMap<String, Thread> uploadThreads;
 	
 	private Uploader() {
-		requestQueue = new LinkedBlockingQueue<UploadQueueObject>();
-		httpClient = new OkHttpClient();
+		uploadQueue = new HashMap<String, UploadQueueObject>();
+		readPendingUploadsFromDb();
+		uploadThreads = new HashMap<>();
+		
+        EventBus.getDefault().register(this);
 	}
 	
 	public static Uploader getUploader() {
@@ -57,9 +56,8 @@ public class Uploader {
 	 * Add an upload to the uploading queue
 	 * 
 	 * @param file The file which should be stored.
-	 * @param deviceId The unique device id of the source device
 	 */
-    public void enqueueUpload(VStoreFile file, String deviceId) {
+    public void enqueueUpload(VStoreFile file) {
         RequestBody body = new Builder()
     		.setType(MultipartBody.FORM)
             .addFormDataPart("filedata", file.getUUID(),
@@ -70,7 +68,7 @@ public class Uploader {
             .addFormDataPart("filesize", Long.toString(file.getFileSize()))
             .addFormDataPart("creationdate", Long.toString(file.getCreationDateUnix()))
             .addFormDataPart("isPrivate", "" + file.isPrivate())
-            .addFormDataPart("phoneID", deviceId)
+            .addFormDataPart("phoneID", FrameworkUtils.getDeviceIdentifier())
             .addFormDataPart("context", file.getContext().getJson().toString())
             .build();
     	
@@ -80,133 +78,77 @@ public class Uploader {
     	//Get upload location from node manager for this node
     	q_obj.uploadUrl = NodeManager.getInstance().getNode(file.getNodeID()).getUploadUri();
     	
-    	if(requestQueue != null)
+		uploadQueue.put(q_obj.fileId, q_obj);
+    }
+    
+    private int readPendingUploadsFromDb() {
+    	try
     	{
-        	requestQueue.add(q_obj);
+	        FileDBHelper dbHelper = new FileDBHelper();
+	        List<VStoreFile> pending 
+	        	= dbHelper.getFilesToUpload(FileDBHelper.SORT_BY_DATE_DESCENDING);
+	        for(VStoreFile f : pending)
+	        {
+	        	enqueueUpload(f);
+	        }
+	        return pending.size();
+    	}
+    	catch(DatabaseException | SQLException e) 
+    	{
+    		
+    		return 0;
     	}
     }
 
     /**
-     * This method starts uploads in the background if some have the pending state in the database.
+     * This method starts an upload thread for each file put into the queue with
+     * {@link Uploader#enqueueUpload()}.
      */
     public void startUploads() {
-        //FileDBHelper dbHelper = new FileDBHelper();
-        //List<VStoreFile> pending = dbHelper.getFilesToUpload(FileDBHelper.SORT_BY_DATE_DESCENDING);
-    	
-    	if(uploadsRunning) return;
-    	
-		while(requestQueue.size() > 0)
+    	Iterator<UploadQueueObject> iter = uploadQueue.values().iterator();
+    	while(iter.hasNext())
 		{
-    		UploadQueueObject nextUpload = requestQueue.peek();
+    		UploadQueueObject qObj = iter.next();
+    		//Ignore if upload is already running
+    		if(uploadThreads.containsKey(qObj.fileId)) continue;
     		
-    		Request request = new Request.Builder()
-		        .url(nextUpload.uploadUrl)
-		        .post(nextUpload.requestBody)
-		        .build();
-    		    
-    		//TODO: Somehow publish upload state
-    		/*EventBus.getDefault().post(new UploadStateEvent(
-	            uploadInfo.getProgressPercent(),
-	            uploadInfo.getUploadId(),
-	            false));*/
-    		
-		    try (Response response = httpClient.newCall(request).execute()) 
-		    {
-		    	//HTTP request was successful
-		    	if(response.isSuccessful())
-		    	{
-		    		boolean invalidResponse = false;
-		    		//Check if upload was also successful 
-		    		//(by checking the JSON answer from the storage node)
-	    			JSONParser p = new JSONParser();
-		    		JSONObject j = null;
-					try 
-					{
-						j = (JSONObject) p.parse(response.body().string());
-					} 
-					catch (ParseException e) 
-					{
-						//Invalid response received.
-						e.printStackTrace();
-						invalidResponse = true;
-					}
-		    		
-		            FileDBHelper dbHelper = new FileDBHelper();
-		            if (!invalidResponse && (int)j.get("error") == 0) 
-		            {
-		                //Upload successful.
-		                //Update the row in the database:
-		                //(upload_pending = false, upload_failed = false)
-		                dbHelper.updateFile(nextUpload.fileId, false, false, false);
-				    	
-			    		UploadQueueObject head = requestQueue.poll();
-			    		EventBus.getDefault().post(new SingleUploadDoneEvent(head.fileId));
-		                
-		                //Post event for the logger
-		                LogUploadDoneEvent logEvt = new LogUploadDoneEvent();
-		                logEvt.fileUUID = head.fileId;
-		                //TODO Upload speed information etc
-		                //logEvt.uploadInfo = uploadInfo;
-		                logEvt.success = true;
-		                EventBus.getDefault().post(logEvt);
-		            }
-		            else 
-		            {
-		                //Upload not successful, node replied with an error.
-		                //Update the row in the database:
-		                //(upload_pending = false, upload_failed = true, delete_pending = false)
-		                dbHelper.updateFile(nextUpload.fileId, false, true, false);
-				    	
-			    		UploadQueueObject head = requestQueue.poll();
-			    		EventBus.getDefault().post(new SingleUploadDoneEvent(head.fileId));
-		                
-		                //Post event that upload failed permanently
-			    		String strResponse = (invalidResponse) ? ("(Invalid response)") : ((String)j.get("error_msg"));
-		                UploadFailedPermanentlyEvent evt
-		                        = new UploadFailedPermanentlyEvent("Node replied: " + strResponse);
-		                EventBus.getDefault().postSticky(evt);
-		                
-		                //Post event for the logger
-		                LogUploadDoneEvent logEvt = new LogUploadDoneEvent();
-		                logEvt.fileUUID = head.fileId;
-		                //TODO 
-		                //logEvt.uploadInfo = uploadInfo;
-		                logEvt.success = false;
-		                EventBus.getDefault().post(logEvt);
-		            }
-		    	}
-		    	else 
-		    	{
-		    		int numberOfAttempts = requestQueue.peek().numberOfAttempts++;
-		    		
-		    		boolean willRetry = true;
-		    		if(numberOfAttempts == 5)
-		    		{
-		    			//TODO: put to beginning of queue
-		    			UploadQueueObject head = requestQueue.poll();
-		    			//requestQueue.add(head);
-		    			willRetry = false;
-		    		}
-		    		
-		    		//Post event that the upload failed
-		    		UploadFailedEvent eFailed = new UploadFailedEvent(
-		    				nextUpload.fileId,
-		    				willRetry,
-		    				numberOfAttempts*defaultBackoffMultiplier);
-		    		
-		    		EventBus.getDefault().post(eFailed);
-		    	}
-		    } catch (IOException e) {
+    		try 
+    		{
+				FileUploadThread t = new FileUploadThread(qObj);
+				uploadThreads.put(qObj.fileId, t);
+				t.start();
+			} 
+    		catch (Exception e) 
+    		{
 				e.printStackTrace();
-	    		requestQueue.peek().numberOfAttempts++;
 			}
-		    /*catch(ConnectException e) 
-		    {
-		    	//TODO
-		    }*/
-    	}
-    	
-		EventBus.getDefault().post(new AllUploadsDoneEvent());
-		
+		}
     }
+    
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onMessageEvent(SingleUploadDoneEvent event) {
+    	//Check if file id of the event matches
+    	String fileId = event.getFileId(); 
+    	if(fileId == null || fileId.equals("")) 
+    	{ 
+    		return; 
+		}
+    	
+    	uploadThreads.remove(fileId);
+    	uploadQueue.remove(fileId);
+    	EventBus.getDefault().removeStickyEvent(event);
+    	
+    	if(uploadQueue.size() == 0)
+    	{
+    		readPendingUploadsFromDb();
+    		//Check if size is still 0 (meaning no pending upload left in database)
+    		if(uploadQueue.size() == 0)
+    		{
+    			EventBus.getDefault().post(new AllUploadsDoneEvent());
+    		}
+    	}
+    }
+    
+    
+    
 }

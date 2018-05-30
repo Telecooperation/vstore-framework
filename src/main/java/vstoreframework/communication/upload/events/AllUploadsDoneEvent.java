@@ -1,4 +1,4 @@
-package vstoreframework.communication.events;
+package vstoreframework.communication.upload.events;
 
 /**
  * This event gets published when all uploads are done.
