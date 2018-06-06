@@ -1,9 +1,9 @@
 package vstore.framework.context;
 
+import org.json.simple.JSONObject;
+
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
-
-import org.json.simple.JSONObject;
 
 /**
  * Used for simple storage of the current usage context as JSON string. 
@@ -35,7 +35,7 @@ public class ContextFile {
 	
 	/**
      * Adds the given json string to the context file
-     * @param uuid The json string to add.
+     * @param ctxJson The json string to add.
      */
     public static synchronized void write(JSONObject ctxJson) {
 		getPrefs().put(ctxKey, ctxJson.toJSONString());

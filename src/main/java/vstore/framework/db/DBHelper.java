@@ -1,14 +1,16 @@
 package vstore.framework.db;
 
-import vstore.framework.error.ErrorMessages;
-import vstore.framework.exceptions.DatabaseException;
-import vstore.framework.utils.FileUtils;
-
 import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+
+import vstore.framework.error.ErrorCode;
+import vstore.framework.error.ErrorMessages;
+import vstore.framework.exceptions.DatabaseException;
+import vstore.framework.exceptions.VStoreException;
+import vstore.framework.file.FileManager;
 
 /**
  * Helper class for the internal vStore SQLite database.
@@ -17,7 +19,7 @@ import java.sql.Statement;
  */
 public class DBHelper {
     private static final String DATABASE_NAME = "vstorage.db";
-    private static String path = FileUtils.getVStoreDir();
+    private static String path = FileManager.getVStoreDir();
     private static String db_url = "jdbc:sqlite:" + path + "/" + DATABASE_NAME;
     
     private static Connection dbConn = null;
@@ -42,6 +44,21 @@ public class DBHelper {
     		throw new DatabaseException(ErrorMessages.DB_CONNECT_ERROR);
 		} 
     }
+
+    /**
+     * Initialize the local database.
+     */
+    public static void initialize() throws VStoreException {
+        try
+        {
+            DBHelper.getInstance();
+        }
+        catch (DatabaseException e)
+        {
+            e.printStackTrace();
+            throw new VStoreException(ErrorCode.DB_LOCAL_ERROR, ErrorMessages.DB_LOCAL_ERROR);
+        }
+    }
     
     /**
      * Gets the instance of the DBHelper.
@@ -58,7 +75,7 @@ public class DBHelper {
     }
     
     /**
-     * For the database layout, you can also see {@link DBSchema.java}.
+     * For the database layout, you can also see {@link DBSchema}.
      * @return true, if no error occurred.
      *         false, if an error occurred.
      */

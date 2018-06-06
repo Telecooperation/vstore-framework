@@ -7,6 +7,20 @@ import vstore.framework.error.ErrorMessages;
 import vstore.framework.exceptions.DatabaseException;
 
 public class RuleManager {
+    private static RuleManager instance;
+
+    private RuleManager() {}
+
+    public static void initialize() {
+        if(instance == null) {
+            instance = new RuleManager();
+        }
+    }
+
+    public static RuleManager get() {
+        initialize();
+        return instance;
+    }
 	
 	/**
      * Initializes a job in background to fetch the list of decision rules that are currently
@@ -15,7 +29,7 @@ public class RuleManager {
      * The following event will notify you when done:
      * - RulesReadyEvent
      */
-    public static void getRules() {
+    public void getRules() {
         //Get JobManager
         /*VJobManager.setContext(c.getApplicationContext());
         JobManager jobManager = VJobManager.getJobManager();
@@ -30,7 +44,7 @@ public class RuleManager {
      * Stores a newly created rule in the framework. Make sure that the rule has an id.
      * @param rule The VStoreRule object. See {@link VStoreRule}.
      */
-    public static void storeNewRule(VStoreRule rule) {
+    public void storeNewRule(VStoreRule rule) {
         if(rule == null) {
             throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
@@ -48,10 +62,10 @@ public class RuleManager {
 
     /**
      * Deletes the rule with the given UUID from the local database.
-     * @param c The Android context.
+     *
      * @param ruleUUID The UUID of the rule to delete.
      */
-    public static void deleteRule(String ruleUUID) {
+    public void deleteRule(String ruleUUID) {
         if(ruleUUID == null) 
         {
             throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
@@ -64,6 +78,21 @@ public class RuleManager {
         catch(DatabaseException | SQLException e)
         {
         	e.printStackTrace();
+        }
+    }
+
+    /**
+     * Updates the decision rule entry to the state of the rule given as parameter.
+     * @param rule The rule object containing the updated information.
+     */
+    public void updateRule(VStoreRule rule) {
+        try {
+            RulesDBHelper helper = new RulesDBHelper();
+            helper.updateRule(rule);
+        }
+        catch(DatabaseException | SQLException e)
+        {
+            e.printStackTrace();
         }
     }
     

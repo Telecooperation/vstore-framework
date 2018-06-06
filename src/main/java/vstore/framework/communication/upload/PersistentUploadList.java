@@ -37,12 +37,12 @@ public class PersistentUploadList {
 		try 
 		{
 			String[] list = getPrefs().keys();
-			currentUploads = new ArrayList<String>(Arrays.asList(list));
+			currentUploads = new ArrayList<>(Arrays.asList(list));
 		} 
 		catch (BackingStoreException e) 
 		{
 			e.printStackTrace();
-			return new ArrayList<String>();
+			return new ArrayList<>();
 		}
 				
 		return currentUploads;

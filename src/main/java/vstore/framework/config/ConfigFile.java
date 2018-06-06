@@ -21,7 +21,7 @@ public class ConfigFile {
 	/**
 	 * Checks if the config file contains an entry with the given key.
 	 * 
-	 * @param uuid The key of the entry to search for.
+	 * @param key The key of the entry to search for.
 	 * @return True, if an entry is found in the config file
 	 */
 	public static synchronized boolean contains(String key) {

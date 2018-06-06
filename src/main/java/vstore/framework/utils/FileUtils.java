@@ -9,10 +9,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 
-import net.coobird.thumbnailator.Thumbnails;
-import vstore.framework.config.ConfigManager;
 import vstore.framework.file.VFileType;
-import vstore.framework.file.VStoreFile;
 
 /**
  * Some utilities for working with files on the filesystem.
@@ -179,55 +176,8 @@ public class FileUtils {
     }
 
     /**
-     * Creates a thumbnail for a given image file.
-
-     * @param file The file to create a thumbnail for.
-     * @return A file containing the bitmap.
-     */
-    public static File createImageThumbnail(VStoreFile file) {
-        File f = new File(file.getFullPath());
-        if(f.exists()) 
-        {
-        	File fThumb = new File(ConfigManager.getThumbnailsDir(), file.getUUID() + ".png");
-        	try 
-        	{
-				Thumbnails.of(f)
-				    .size(512, 512)
-				    .outputFormat("png")
-				    .toFile(fThumb);
-			} 
-        	catch (IOException e) 
-        	{
-				// TODO 
-				e.printStackTrace();
-				return null;
-			}
-            return fThumb;
-        }
-        return null;
-    }
-
-    /**
-     * Creates a thumbnail from the given video file.
-     * @param c The Android context.
-     * @param file The video file (should be a supported type from {@link VFileType}).
-     * @return Null, if file not supported. The thumbnail otherwise.
-     */
-    public static File createVideoThumbnail( VStoreFile file) {
-        /*File f = new File(file.getFullPath());
-        if(f.exists() && VFileType.VIDEO_TYPES.contains(file.getFileType())) {
-            Bitmap thumb = ThumbnailUtils.createVideoThumbnail(f.getAbsolutePath(),
-                    MediaStore.Images.Thumbnails.MINI_KIND);
-            writeThumbToDisk( thumb, file.getUUID());
-            return thumb;
-        }*/
-    	//TODO
-        return null;
-    }
-
-    /**
      * Returns the MIME type of a file based on the file's extension.
-     * For supported file types see {@link vstoreframework.file.VFileType};
+     *
      * @param filename The filename of the file including the file extension.
      * @return Null, if no file extension available. Otherwise, the MIME type corresponding
      *         to the file extension.
@@ -244,9 +194,5 @@ public class FileUtils {
             }
         }
         return VFileType.getMimeTypeFromExtension("vstor");
-    }
-    
-    public static String getVStoreDir() {
-    	return System.getProperty("user.dir") + "vstore";
     }
 }

@@ -1,11 +1,11 @@
 package vstore.framework.communication.download.threads;
 
-import java.io.IOException;
-
 import org.greenrobot.eventbus.EventBus;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+
+import java.io.IOException;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -49,8 +49,18 @@ public class MetadataDownloadThread extends Thread {
     	try (Response response = httpClient.newCall(request).execute()) 
     	{
     		if (!response.isSuccessful()) throw new IOException("Unexpected code " + response);
-            
-    		String responseBody = response.body().string();
+
+			String responseBody;
+			try
+			{
+				responseBody = response.body().string();
+			}
+			catch(NullPointerException ex)
+			{
+				downloadFailed(ex);
+				return null;
+			}
+
     		JSONParser jP = new JSONParser();
     		JSONObject result = (JSONObject)jP.parse(responseBody);
     		
@@ -70,15 +80,11 @@ public class MetadataDownloadThread extends Thread {
                 return meta;
             }
         }
-    	catch (IOException e) 
-    	{
-    		downloadFailed(e);
-		} 
-    	catch (ParseException e) 
+    	catch (IOException | ParseException e)
     	{
     		downloadFailed(e);
 		}
-    	return null;
+		return null;
     }
     
     private void downloadFailed(Exception e) {

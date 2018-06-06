@@ -37,12 +37,12 @@ public class PersistentDownloadList {
 		try 
 		{
 			String[] list = getPrefs().keys();
-			currentDownloads = new ArrayList<String>(Arrays.asList(list));
+			currentDownloads = new ArrayList<>(Arrays.asList(list));
 		} 
 		catch (BackingStoreException e) 
 		{
 			e.printStackTrace();
-			return new ArrayList<String>();
+			return new ArrayList<>();
 		}
 				
 		return currentDownloads;

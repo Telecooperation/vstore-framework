@@ -1,52 +1,47 @@
 package vstore.framework;
 
-import static vstore.framework.error.ErrorMessages.COPIED_FILE_NOT_FOUND;
-import static vstore.framework.error.ErrorMessages.COPYING_INTO_FRAMEWORK_FAILED;
-import static vstore.framework.error.ErrorMessages.FILE_ALREADY_EXISTS;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 
-import org.greenrobot.eventbus.EventBus;
-
 import vstore.framework.communication.CommunicationManager;
 import vstore.framework.communication.RequestFilesMatchingContextThread;
 import vstore.framework.communication.download.Downloader;
 import vstore.framework.communication.download.events.DownloadFailedEvent;
 import vstore.framework.communication.download.events.DownloadProgressEvent;
-import vstore.framework.communication.download.events.DownloadedFileReadyEvent;
-import vstore.framework.communication.download.events.MetadataEvent;
 import vstore.framework.communication.upload.Uploader;
 import vstore.framework.config.ConfigManager;
 import vstore.framework.context.ContextDescription;
-import vstore.framework.context.ContextFile;
 import vstore.framework.context.ContextFilter;
+import vstore.framework.context.ContextManager;
 import vstore.framework.context.SearchContextDescription;
 import vstore.framework.db.DBHelper;
-import vstore.framework.db.DBResultOrdering;
 import vstore.framework.db.table_helper.FileDBHelper;
+import vstore.framework.error.ErrorCode;
 import vstore.framework.error.ErrorMessages;
 import vstore.framework.exceptions.DatabaseException;
 import vstore.framework.exceptions.StoreException;
 import vstore.framework.exceptions.VStoreException;
+import vstore.framework.file.FileManager;
 import vstore.framework.file.VFileType;
 import vstore.framework.file.VStoreFile;
-import vstore.framework.file.events.FileDeletedEvent;
-import vstore.framework.file.events.FilesReadyEvent;
-import vstore.framework.file.threads.FetchFilesFromDBThread;
 import vstore.framework.logging.LogHandler;
 import vstore.framework.logging.LoggingService;
 import vstore.framework.matching.FileNodeMapper;
 import vstore.framework.matching.Matching;
 import vstore.framework.node.NodeInfo;
 import vstore.framework.node.NodeManager;
+import vstore.framework.rule.RuleManager;
 import vstore.framework.utils.ContextUtils;
 import vstore.framework.utils.FileUtils;
 import vstore.framework.utils.FrameworkUtils;
 import vstore.framework.utils.Hash;
+
+import static vstore.framework.error.ErrorMessages.COPIED_FILE_NOT_FOUND;
+import static vstore.framework.error.ErrorMessages.COPYING_INTO_FRAMEWORK_FAILED;
+import static vstore.framework.error.ErrorMessages.FILE_ALREADY_EXISTS;
 
 /**
  * Main entry point for the vStore virtual storage framework for mobile devices.
@@ -59,138 +54,138 @@ public class VStore {
      * This field contains the framework instance.
      */
     private static VStore mInstance = null;
-    
-    /**
-     * This field contains the current context description.
-     */
-    private static ContextDescription mCurrentContext;
         
     /**
      * Private constructor for creating a new VStore object. 
      * It initializes all components necessary for operation of the
      * framework (VStoreConfig, DBHelper).
+     *
+     * @throws VStoreException in case an error occurred.
      */
     private VStore() throws VStoreException {
         //Start the logging thread
         LoggingService.getThread().start();
         
         //Initialize instance of db access
-    	initializeDatabase();
-        initializeContext();
-
-        //Initialize the vStore configuration instance
-        //TODO: Change parameters according to user input 
-        //(if user wants us to download the file)
-        ConfigManager.getInstance(false, null);
+    	DBHelper.initialize();
+        ContextManager.initialize();
+        CommunicationManager.initialize();
+        ConfigManager.initialize();
+        RuleManager.initialize();
         
         //Initialize the vStore FileNodeMapper
         FileNodeMapper.getMapper();
     }
 
     /**
-     * Gets the instance of the vStore framework.
-     * 
-     * @return The instance of vStore framework.
-     * @throws VStoreException In case some error occured during instantiation.
+     * Initializes the vStore framework.
+     *
+     * @throws VStoreException In case some error occurred during instantiation.
      */
-    public static VStore getInstance() throws VStoreException {
-         /**
-         * Initialize VStore instance
-         */
-        if (mInstance == null) 
+    public static void initialize() throws VStoreException {
+        //Initialize VStore instance
+        if (mInstance == null)
         {
             mInstance = new VStore();
         }
+    }
+
+    /**
+     * Gets the instance of the vStore framework.
+     * 
+     * @return The instance of vStore framework.
+     */
+    public static VStore getInstance() {
         return mInstance;
-    }
-    
-    private void initializeDatabase() throws VStoreException {
-    	try 
-    	{
-			DBHelper.getInstance();
-		} 
-    	catch (DatabaseException e) 
-    	{
-			e.printStackTrace();
-			throw new VStoreException(ErrorMessages.DB_LOCAL_ERROR);
-		}
-    }
-    
-    private void initializeContext() {
-    	//Initialize the current context description
-        mCurrentContext = new ContextDescription();
-        //Check if we have persistent context in the context file
-        ContextDescription tmpCtx = ContextFile.getContext();
-        if(tmpCtx != null)
-        {
-        	mCurrentContext = tmpCtx;
-        }
     }
 
     /**
      * Returns the current configuration containing application-defined settings.
-     * 
+     * To refresh / re-download the configuration, call {@link ConfigManager#download(String)}
+     *
      * @return The VStoreConfig configuration object. Will return the default
      * configuration, if you have not configured anything.
      */
     public ConfigManager getConfig() {
-        return ConfigManager.getInstance(false, null);
+        return ConfigManager.get();
     }
-    
+
     /**
-     * Use this method to provide new context information to the framework.
-     * If the new information should be persistent after a restart of the
-     * framework, {@link persistContext(true)} should be called.
-     * 
-     * @param context The new context information
+     * @return The file manager object for file handling.
      */
-    public void provideContext(ContextDescription context) {
-    	mCurrentContext = context;
+    public FileManager getFileManager() {
+        return FileManager.getInstance();
     }
-    
     /**
-     * Use this method to make the currently configured usage context 
-     * persistent after a restart of the framework.
-     * 
-     * @param makePersistent True if the context should be persistent.
-     *                       False if you want to undo this.
+     * @return The communication manager can be used for operations regarding up- and downloads.
      */
-    public void persistContext(boolean makePersistent) {
-    	if(makePersistent && mCurrentContext != null)
-    	{
-    		ContextFile.write(mCurrentContext.getJson());
-    		return;
-    	}
-    	if(!makePersistent) 
-    	{ 
-    		ContextFile.clearContext(); 
-		}
+    public CommunicationManager getCommunicationManager() {
+        return CommunicationManager.get();
+    }
+
+    /**
+     * @return The rule manager can be used to manage the creation and deletion of rules.
+     */
+    public RuleManager getRuleManager() {
+        return RuleManager.get();
+    }
+    /**
+     * @return The context manager can be used for operations regarding context.
+     */
+    public ContextManager getContextManager() {
+        return ContextManager.get();
     }
 
     /**
      * This method returns the usage context currently used for matching.
-     * If you want to refresh it, use {@link VStore#provideContext()}
-     * 
-     * @return A ContextDescription-object containing the current usage 
+     * If you want to refresh it, use {@link VStore#provideContext(ContextDescription)}
+     *
+     * @return A ContextDescription-object containing the current usage
      *         context description
      */
-    public final ContextDescription getCurrentContext() {
-        return mCurrentContext;
+    public ContextDescription getCurrentContext() {
+        return ContextManager.get().getCurrentContext();
     }
-    
+
     /**
-     * This method clears the current usage context and resets it 
-     * to an empty state.
-     * 
-     * @param keepPersistent If set to true, the context currently stored
-     * persistently (if any) will not be deleted. 
+     * Use this method to provide new context information to the framework.
+     * If the new information should be persistent after a restart of the
+     * framework, {@link VStore#persistContext(boolean)} should be called.
+     *
+     * @param ctxDescription The new context information
+     *
+     * @return Returns the context manager instance again to simplify method-chaining.
      */
-    public void clearCurrentContext(boolean keepPersistent) {
-        mCurrentContext = new ContextDescription();
-        if(!keepPersistent)
-        {
-        	ContextFile.clearContext();
-        }
+    public ContextManager provideContext(ContextDescription ctxDescription) {
+        ContextManager.get().provideContext(ctxDescription);
+        return ContextManager.get();
+    }
+
+    /**
+     * Use this method to make the currently configured usage context
+     * persistent after a restart of the framework.
+     *
+     * @param makePersistent True if the context should be persistent.
+     *                       False if you want to undo this.
+     *
+     * @return Returns the context manager instance again to simplify method-chaining.
+     */
+    public ContextManager persistContext(boolean makePersistent) {
+        ContextManager.get().persistContext(makePersistent);
+        return ContextManager.get();
+    }
+
+    /**
+     * This method clears the current usage context and resets it to an empty state.
+     *
+     * @param keepPersistent If set to true, the context currently stored
+     * persistently (if any) will not be deleted.
+     *
+     * @return Returns the context manager instance again to simplify method-chaining.
+     */
+    public ContextManager clearCurrentContext(boolean keepPersistent) {
+        ContextManager.get().clearCurrentContext(keepPersistent);
+        return ContextManager.get();
     }
 
     /**
@@ -215,13 +210,14 @@ public class VStore {
      *         
      * @throws StoreException in case something failed.
      */
-    public VStoreFile store(String fileUri, boolean isPrivate, String deviceId) 
+    public VStoreFile store(String fileUri, boolean isPrivate, String deviceId)
     		throws StoreException 
     {
-        if(fileUri == null || fileUri.equals("") 
-        		|| deviceId == null || deviceId.equals("")) 
+        if(fileUri == null || fileUri.equals("")
+        		|| deviceId == null || deviceId.equals(""))
         {
-            throw new StoreException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
+            throw new StoreException(ErrorCode.PARAMETERS_MUST_NOT_BE_NULL,
+                    ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         
         File file = new File(fileUri);
@@ -229,7 +225,7 @@ public class VStore {
         //Generate new UUID for file
         String uuid = UUID.randomUUID().toString();
         String descriptiveName = file.getName();
-        String mimetype = "";
+        String mimetype;
         String extension = "";
         
         //Derive mime type from file extension (is not the best method 
@@ -242,16 +238,17 @@ public class VStore {
         	extension = file.getName().substring(extensionPos + 1);
       
         //Copy file into the framework folder and rename it to UUID.extension
-        File fCopied = null;
+        File fCopied;
         try 
         {
-            fCopied = FileUtils.copyFile(file, ConfigManager.getStoredFilesDir(),
+            fCopied = FileUtils.copyFile(file, FileManager.getStoredFilesDir(),
                     uuid + "." + extension);
         } 
         catch (Exception e) 
         {
         	//Abort in case of copy-error
-            throw new StoreException(COPYING_INTO_FRAMEWORK_FAILED);
+            throw new StoreException(ErrorCode.COPYING_INTO_FRAMEWORK_FAILED,
+                    COPYING_INTO_FRAMEWORK_FAILED);
         }
         
         //Compute hash for file
@@ -264,7 +261,7 @@ public class VStore {
         } 
         catch(DatabaseException e) 
         {
-        	throw new StoreException(e.getMessage());
+        	throw new StoreException(ErrorCode.DB_LOCAL_ERROR, e.getMessage());
         }
         
         //Post an error if I already stored the same file before
@@ -272,7 +269,7 @@ public class VStore {
         {
             fCopied.delete();
             //Abort in case the file already exists
-            throw new StoreException(FILE_ALREADY_EXISTS);
+            throw new StoreException(ErrorCode.FILE_ALREADY_EXISTS, FILE_ALREADY_EXISTS);
         }
         
         VStoreFile f;
@@ -283,12 +280,12 @@ public class VStore {
 		} 
 		catch (FileNotFoundException e) 
 		{
-			throw new StoreException(COPIED_FILE_NOT_FOUND);
+			throw new StoreException(ErrorCode.FILE_NOT_FOUND, COPIED_FILE_NOT_FOUND);
 		}
         f.setMD5Hash(md5);
-        f.setContext(mCurrentContext);
+        f.setContext(ContextManager.get().getCurrentContext());
 
-        ConfigManager vCfg = ConfigManager.getInstance(false, null);
+        ConfigManager vCfg = ConfigManager.get();
         //Start logging for this file
         LogHandler.logStartForFile(f, vCfg.getMatchingMode());
 
@@ -311,7 +308,7 @@ public class VStore {
 				e.printStackTrace();
 				fCopied.delete();
 				LogHandler.abortLoggingForFile(f.getUUID());
-	            throw new StoreException(e.getMessage());
+	            throw new StoreException(ErrorCode.DB_LOCAL_ERROR, e.getMessage());
 			}
             //Schedule job for background upload
             Uploader up = Uploader.getUploader();
@@ -332,7 +329,7 @@ public class VStore {
 				e.printStackTrace();
 				fCopied.delete();
 				LogHandler.abortLoggingForFile(f.getUUID());
-	            throw new StoreException(e.getMessage());
+	            throw new StoreException(ErrorCode.DB_LOCAL_ERROR, e.getMessage());
 			}
         }
 
@@ -343,111 +340,12 @@ public class VStore {
     }
 
     /**
-     * Marks the given file for deletion.
-     * Once the corresponding node has replied that the file was deleted, 
-     * you will be notified of the success with the following event: 
-     * {@link FileDeletedEvent}
-     *
-     * @param fileUUID The UUID of the file to delete.
-     * @return True, in case of success.
-     */
-    public boolean deleteFile(String fileUUID) {
-        if(fileUUID == null || fileUUID.equals("")) {
-            throw new RuntimeException(
-            		ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
-        }
-        try
-        {
-	        FileDBHelper dbHelper = new FileDBHelper();
-	        dbHelper.markForDeletion(fileUUID);
-        }
-        catch(DatabaseException | SQLException e) 
-        {
-        	//Something went wrong while accessing the local database
-        	e.printStackTrace();
-        	return false;
-        }
-        
-        CommunicationManager.get().runDeletions();
-        return true;
-    }
-
-    /**
-     * Can be used to fetch a list of all files uploaded (or currently uploading) from this device.
-     * Results are published in the {@link FilesReadyEvent}.
-     * 
-     * @param resultOrdering The order in which to fetch the files.
-     *                       (see {@link DBResultOrdering}).
-     * @param onlyPending If true, only files that are pending to upload 
-     * 				      will be returned.
-     * @param onlyPrivate If true, only files that are marked private 
-     *                    will be returned.
-     */
-    public void getLocalFileList(DBResultOrdering resultOrdering, boolean onlyPending, 
-    		boolean onlyPrivate) 
-    {
-    	FetchFilesFromDBThread fT;
-    	switch (resultOrdering) 
-    	{
-            case NEWEST_FIRST:
-            	fT = new FetchFilesFromDBThread(
-                                    FileDBHelper.SORT_BY_DATE_DESCENDING,
-                                    onlyPending,
-                                    onlyPrivate);
-                break;
-            case OLDEST_FIRST:
-            	fT = new FetchFilesFromDBThread(
-                        FileDBHelper.SORT_BY_DATE_ASCENDING,
-                        onlyPending,
-                        onlyPrivate);
-                break;
-            default:
-            	fT = new FetchFilesFromDBThread(
-                        FileDBHelper.SORT_BY_DATE_ASCENDING,
-                        onlyPending,
-                        onlyPrivate);
-                break;
-        }
-    	fT.start();
-    }
-
-    /**
-     * Fetches a list of all uploads currently pending.
-     * Results are published in the {@link FilesReadyEvent}.
-     *
-     * @param resultOrdering The order in which to return the files (e.g. newest or oldest first)
-     *                       (see {@link DBResultOrdering}).
-     */
-    public void getPendingUploads(DBResultOrdering resultOrdering) {
-    	getLocalFileList(resultOrdering, true, false);
-    }
-
-    /**
-     * This method returns the number of files that are still to be uploaded 
-     * by the framework.
-     * 
-     * @return The number of files to upload, or -1 if something went wrong.
-     */
-    public int getPendingUploadCount() {
-    	try
-    	{
-	        FileDBHelper dbHelper = new FileDBHelper();
-	        return dbHelper.getNumberOfFilesToUpload();
-    	}
-    	catch(DatabaseException | SQLException e) 
-    	{
-    		e.printStackTrace();
-    		return -1;
-    	}
-    }
-
-    /**
      * This method starts a job that queries every available storage node with 
      * the given usage context. The nodes will then deliver a list with files 
      * matching this context.
      * You can subscribe to the following event to get notified of available 
      * results from a node:
-     * {@link VStore.vstoreframework.events.NewFilesMatchingContextEvent}
+     * {@link vstore.framework.file.events.NewFilesMatchingContextEvent}
      *
      * To request files for a custom context, simply create a 
      * {@link ContextDescription} with the desired properties and pass it to 
@@ -461,82 +359,40 @@ public class VStore {
     public boolean getFilesMatchingContext(ContextDescription usageContext,
     		ContextFilter filter, String requestId) 
     {
-        if(usageContext == null) 
+        if(usageContext == null)
         {
             throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
-        if(requestId == null || requestId.equals("")) 
+        if(requestId == null || requestId.equals(""))
         {
             requestId = UUID.randomUUID().toString();
         }
 
         //Apply the user-defined search filter to the current context
-        SearchContextDescription ctx 
+        SearchContextDescription ctx
         	= ContextUtils.applyFilter(usageContext, filter);
         //Get node manager instance
         NodeManager manager = NodeManager.getInstance();
         Map<String, NodeInfo> nodelist = manager.getNodeList();
-        if(nodelist.size() == 0) return false; 
-        
+        if(nodelist.size() == 0) return false;
+
         //Clear the file->node mapping file
         FileNodeMapper.getMapper().clear();
         //Start a request job for each node
-        for (NodeInfo ninfo : nodelist.values()) 
+        for (NodeInfo ninfo : nodelist.values())
         {
-            try 
+            try
 			{
-            	RequestFilesMatchingContextThread t 
+            	RequestFilesMatchingContextThread t
             		= new RequestFilesMatchingContextThread(ninfo.getUUID(), ctx, requestId);
 	            t.start();
-			} 
-			catch (Exception e) 
+			}
+			catch (Exception e)
 			{
 				e.printStackTrace();
 			}
         }
         return true;
-    }
-
-    /**
-     * This method returns the request address of a file's mime type from the node.
-     * 
-     * @param uuid The UUID of the file to request the type for.
-     * @return The address to contact to retrieve the mime type of the given file.
-     *         Returns null, if no uuid is given.
-     */
-    public String getMimetypeUriForFile(String uuid) {
-        if(uuid == null) {
-            throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
-        }
-        
-        String nodeId = FileNodeMapper.getMapper().getNodeId(uuid);
-        if (nodeId.equals("")) return null;
-    
-        NodeManager manager = NodeManager.getInstance();
-        return manager.getNode(nodeId).getMimeTypeUri(uuid, 
-        		FrameworkUtils.getDeviceIdentifier());
-    }
-
-    /**
-     * This method provides the url to request metadata for a file.
-     * 
-     * @param uuid The UUID of the file to request the type for.
-     * @param fullMetadata If set to true, the uri for requesting full metadata 
-     *                     is returned (e.g. with context information). If set 
-     *                     to false, the uri for requesting lightweight metadata 
-     *                     is returned.
-     * @return The uri.
-     */
-    public String getMetadataUriForFile(String uuid, boolean fullMetadata) {
-        if(uuid == null || uuid.equals("")) 
-        {
-            throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
-        }
-        String nodeId = FileNodeMapper.getMapper().getNodeId(uuid);
-        if(nodeId.equals("")) { return null; }
-        NodeManager manager = NodeManager.getInstance();
-        return manager.getNode(nodeId).getMetadataUri(uuid, 
-        		FrameworkUtils.getDeviceIdentifier(), fullMetadata);
     }
 
     /**
@@ -552,76 +408,17 @@ public class VStore {
      * @return True, if the download has been started. False, if not.
      */
     public boolean getFullFile(final String uuid, File dir) {
-        if(uuid == null) 
-        {
-            throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
-        }
-        final String requestId = UUID.randomUUID().toString();
-
-        VStoreFile f = null;
-        //Check if it is my own file
-        if(isMyFile(uuid)) 
-        {
-        	try 
-        	{
-	            FileDBHelper dbHelper = new FileDBHelper();
-	            f = dbHelper.getFile(uuid);
-        	}
-        	catch(DatabaseException | SQLException e) 
-        	{
-        		e.printStackTrace();
-        		return false;
-        	}
-        }
-        if(f != null) 
-        {
-        	//File found locally.
-        	DownloadedFileReadyEvent evt = new DownloadedFileReadyEvent();
-        	evt.file = f;
-        	evt.requestId = requestId;
-        	EventBus.getDefault().postSticky(evt);
-            return true;
-        }
-
-        //File not found locally.
-        //Try to get the id of the node corresponding to the file from 
-        //the file<->node mapping of the last request
-        String nodeId = FileNodeMapper.getMapper().getNodeId(uuid);
-        if(!nodeId.equals("")) 
-        { 
-        	//Start download. Result will be published in DownloadProgressEvent
-            return Downloader.downloadFullFileFromNode(uuid, nodeId, requestId, dir);
-        } 
-        else
-        {
-        	//No node known for the file.
-            //Thus query all storage nodes for the file
-            return Downloader.queryAllNodesForFile(uuid, dir);
-        }
+        return FileManager.getInstance().getFullFile(uuid, dir);
     }
 
     /**
-     * Loads the thumbnail for the given UUID and loads it into the 
-     * given image view. Will display a placeholder while loading and 
-     * an error image when loading failed.
+     * Loads the thumbnail for the given UUID.
+     * Thumbnail will be returned in the {@link vstore.framework.communication.download.events.NewThumbnailEvent}.
      * 
      * @param fileUuid The UUID of the file.
-     * @param view The ImageView to load the file into.
      */
-    /*public void requestThumbnail(String fileUuid, ImageView view) {
-        Downloader.downloadThumbnail(fileUuid, view);
-    }*/
-
-    /**
-     * This method downloads metadata for the given file UUID. Will only work 
-     * if you are the owner of the file or if the file is public.
-     * You will be notified via the {@link MetadataEvent} event when the 
-     * request has finished.
-     * 
-     * @param fileUuid The file's UUID.
-     */
-    public void requestMetadata(final String fileUuid) {
-        Downloader.downloadMetadata(fileUuid);
+    public void getThumbnail(String fileUuid) {
+        Downloader.downloadThumbnail(fileUuid);
     }
 
     /**
@@ -631,17 +428,8 @@ public class VStore {
      * @param fileUuid The UUID to check
      * @return True, if this phone uploaded the file.
      */
-    public static boolean isMyFile(String fileUuid) {
-    	try
-    	{
-	        FileDBHelper dbHelper = new FileDBHelper();
-	        return dbHelper.isMyFile(fileUuid);
-    	} 
-    	catch(DatabaseException | SQLException e) 
-    	{
-    		e.printStackTrace();
-    		return false;
-    	}
+    public boolean isMyFile(String fileUuid) {
+    	return FileManager.getInstance().isMyFile(fileUuid);
     }
     
     /**
@@ -652,9 +440,13 @@ public class VStore {
      * @return True, if the type is supported. False, if not.
      */
     public static boolean isMimeTypeSupported(String mimetype) {
-        if(mimetype == null) {
-            return false;
-        }
-        return VFileType.isMimeTypeSupported(mimetype);
+        return FileManager.isMimeTypeSupported(mimetype);
+    }
+
+    /**
+     * @return The identifier of this device.
+     */
+    public static String getDeviceIdentifier() {
+        return FrameworkUtils.getDeviceIdentifier();
     }
 }

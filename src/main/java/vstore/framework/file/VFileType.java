@@ -122,6 +122,8 @@ public final class VFileType {
      * @return True, if the file type is supported. False, if not.
      */
     public static boolean isMimeTypeSupported(String mimetype) {
+        if(mimetype == null) return false;
+
         if(extToMimeMap.containsValue(mimetype)) {
             return true;
         }

@@ -1,8 +1,8 @@
 package vstore.framework.context.types.place;
 
-import java.io.Serializable;
-
 import org.json.simple.JSONObject;
+
+import java.io.Serializable;
 
 import vstore.framework.context.types.VContextType;
 import vstore.framework.context.types.location.VLatLng;
@@ -64,13 +64,15 @@ public class VSinglePlace extends VContextType<VSinglePlace> implements Serializ
 
     /**
      * Constructs a new single place object from the given JSON object.
-     * @param p
+     * @param p A json string describing the single place.
      */
 	public VSinglePlace(JSONObject p) {
         setPlaceTypeText((String)p.get(KEY_PLACE_TYPE_TEXT));
         try 
         {
-            setPlaceType(PlaceType.valueOf((String)p.getOrDefault(KEY_PLACE_TYPE, "")));
+            Object value = p.get(KEY_PLACE_TYPE);
+            if(value == null) { value = ""; }
+            setPlaceType(PlaceType.valueOf((String)value));
         } 
         catch (IllegalArgumentException ex) 
         {
@@ -81,6 +83,24 @@ public class VSinglePlace extends VContextType<VSinglePlace> implements Serializ
         setLikelihood((double)p.get(KEY_PLACE_LIKELIHOOD));
         setMostLikely((boolean)p.get(KEY_PLACE_IS_LIKELY));
         
+    }
+
+    /**
+     * Constructs a new single place object from the given JSON object.
+     *
+     * @param id The id for this place.
+     * @param name The name of this place.
+     * @param type The vStore place category this place belongs to.
+     * @param lat The latitude coordinate for this place.
+     * @param lng the longitude coordinate for this place.
+     * @param likelihood The likelihood that the user is located at this place.
+     */
+    public VSinglePlace(String id, String name, PlaceType type, double lat, double lng, double likelihood) {
+	    setId(id);
+	    setName(name);
+	    setPlaceType(type);
+	    setLatLng(lat, lng);
+	    setLikelihood(likelihood);
     }
 
     /**
@@ -118,7 +138,7 @@ public class VSinglePlace extends VContextType<VSinglePlace> implements Serializ
 
     /**
      * Sets the vStore place category this place belongs to.
-     * @param placetype A category from {@link PlaceConstants.PlaceType}.
+     * @param placetype A category from {@link PlaceType}.
      */
     public void setPlaceType(PlaceType placetype) { this.placeType = placetype; }
 

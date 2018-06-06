@@ -1,32 +1,35 @@
 package vstore.framework.communication.upload.threads;
 
-import java.io.IOException;
-import java.sql.SQLException;
-
 import org.greenrobot.eventbus.EventBus;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import java.io.IOException;
+import java.sql.SQLException;
+
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import vstore.framework.communication.upload.ProgressRequestBody;
+import vstore.framework.communication.upload.UploadInfo;
 import vstore.framework.communication.upload.UploadQueueObject;
 import vstore.framework.communication.upload.events.SingleUploadDoneEvent;
 import vstore.framework.communication.upload.events.UploadFailedEvent;
 import vstore.framework.communication.upload.events.UploadFailedPermanentlyEvent;
+import vstore.framework.communication.upload.events.UploadStateEvent;
 import vstore.framework.db.table_helper.FileDBHelper;
 import vstore.framework.error.ErrorMessages;
 import vstore.framework.exceptions.DatabaseException;
 import vstore.framework.logging.log_events.LogUploadDoneEvent;
 
-public class FileUploadThread extends Thread {
+public class FileUploadThread extends Thread implements ProgressRequestBody.Listener {
 	private static int MAX_NUMBER_OF_ATTEMPTS = 3;
 	private static int SEC_SLEEP_BETWEEN_ATTEMPTS = 5;
 	
-	OkHttpClient httpClient;
-	
+	private OkHttpClient httpClient;
 	private UploadQueueObject queueObject;
+	private long beginTime;
 	
 	public FileUploadThread(UploadQueueObject file) throws Exception {
 		if(file == null)
@@ -41,17 +44,12 @@ public class FileUploadThread extends Thread {
 	
 	@Override
 	public void run() {
-		
+		beginTime = System.currentTimeMillis();
 		doUpload();
         EventBus.getDefault().unregister(this);
 	}
 	
-	public void doUpload() {
-		Request request = new Request.Builder()
-	        .url(queueObject.uploadUrl)
-	        .post(queueObject.requestBody)
-	        .build();
-		    
+	private void doUpload() {
 		FileDBHelper dbHelper;
 		try 
 		{
@@ -62,13 +60,13 @@ public class FileUploadThread extends Thread {
 			e.printStackTrace();
 			return;
 		}
-		
-		//TODO: Somehow publish upload state
-		/*EventBus.getDefault().post(new UploadStateEvent(
-            uploadInfo.getProgressPercent(),
-            uploadInfo.getUploadId(),
-            false));*/
-		
+
+		ProgressRequestBody reqBody = new ProgressRequestBody(queueObject.requestBody, this);
+		Request request = new Request.Builder()
+				.url(queueObject.uploadUrl)
+				.post(reqBody)
+				.build();
+
 		while(queueObject.numberOfAttempts < MAX_NUMBER_OF_ATTEMPTS)
 		{	
 			try (Response response = httpClient.newCall(request).execute()) 
@@ -85,7 +83,7 @@ public class FileUploadThread extends Thread {
 					{
 						j = (JSONObject) p.parse(response.body().string());
 					} 
-					catch (ParseException e) 
+					catch (ParseException | NullPointerException e)
 					{
 						//Invalid response received.
 						e.printStackTrace();
@@ -107,16 +105,7 @@ public class FileUploadThread extends Thread {
 		                	//Should never happen
 		                	e.printStackTrace();
 						}
-				    	
-			    		EventBus.getDefault().post(new SingleUploadDoneEvent(queueObject.fileId));
-		                
-		                //Post event for the logger
-		                LogUploadDoneEvent logEvt = new LogUploadDoneEvent();
-		                logEvt.fileUUID = queueObject.fileId;
-		                //TODO Upload speed information etc
-		                //logEvt.uploadInfo = uploadInfo;
-		                logEvt.success = true;
-		                EventBus.getDefault().post(logEvt);
+		                uploadDone();
 		            }
 		            else 
 		            {
@@ -158,11 +147,7 @@ public class FileUploadThread extends Thread {
 			}
 			sleepBetweenAttempts();
 		}
-		
-		//Post event that the upload failed, even after multiple attempts
-		UploadFailedEvent eFailed 
-			= new UploadFailedEvent(queueObject.fileId, false, 0);
-		EventBus.getDefault().post(eFailed);
+		uploadFailed();
 	}
 	
 	private void sleepBetweenAttempts() {
@@ -184,5 +169,45 @@ public class FileUploadThread extends Thread {
 			}
 		}
 		queueObject.numberOfAttempts++;
+	}
+
+	private void uploadDone() {
+        //Post event for the interested subscribers
+        EventBus.getDefault().post(new SingleUploadDoneEvent(queueObject.fileId));
+
+        //Post event for the logger
+        LogUploadDoneEvent logEvt = new LogUploadDoneEvent();
+        logEvt.fileUUID = queueObject.fileId;
+        //Upload speed information etc
+        long elapsedTime = System.currentTimeMillis() - beginTime;
+        long uploadSpeed;
+        try {
+            uploadSpeed = queueObject.requestBody.contentLength() / elapsedTime;
+        }
+        catch(IOException e)
+        {
+            uploadSpeed = 0;
+        }
+        logEvt.uploadInfo = new UploadInfo(elapsedTime, uploadSpeed);
+        logEvt.success = true;
+        EventBus.getDefault().post(logEvt);
+    }
+
+    private void uploadFailed() {
+        //Post event that the upload failed, even after multiple attempts
+        UploadFailedEvent eFailed
+                = new UploadFailedEvent(queueObject.fileId, false, 0);
+        EventBus.getDefault().post(eFailed);
+    }
+
+	@Override
+	public void onProgress(int progress) {
+		//Publish upload state
+		EventBus.getDefault().post(
+				new UploadStateEvent(
+						progress,
+						queueObject.fileId,
+						false));
+
 	}
 }

@@ -1,46 +1,34 @@
 package vstore.framework.config;
 
-import java.io.File;
-import java.io.IOException;
-import java.sql.SQLException;
-
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+
+import java.io.IOException;
+import java.sql.SQLException;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import vstore.framework.context.types.noise.VNoise;
 import vstore.framework.db.table_helper.RulesDBHelper;
+import vstore.framework.error.ErrorCode;
+import vstore.framework.error.ErrorMessages;
 import vstore.framework.exceptions.DatabaseException;
+import vstore.framework.exceptions.VStoreException;
 import vstore.framework.matching.Matching;
 import vstore.framework.matching.Matching.MatchingMode;
 import vstore.framework.node.NodeInfo;
 import vstore.framework.node.NodeManager;
 import vstore.framework.rule.VStoreRule;
-import vstore.framework.utils.FileUtils;
 
 /**
  * This class loads the configuration for the framework.
  */
 @SuppressWarnings("unused")
 public class ConfigManager {
-    /**
-     * This is the subdirectory where the framework stores user-created files.
-     */
-    private static final String STORED_FILES_DIR = "vfiles/";
-    /**
-     * This is the subdirectory where the framework stores thumbnails for user-created files.
-     */
-    private static final String THUMBNAILS_DIR = STORED_FILES_DIR + "thumbs/";
-    /**
-     * This is the subdirectory where the framework stores downloaded files
-     */
-    private static final String DOWNLOADED_FILES_DIR = "dlfiles/";
-
-	private int mDefaultRMSThreshold;
+    private int mDefaultRMSThreshold;
     private int mDefaultDBThreshold;
     
     private boolean mMultipleNodesPerRule;
@@ -48,58 +36,40 @@ public class ConfigManager {
     private MatchingMode mMatchingMode;
     
     private NodeManager mNodeManager;
-    private static ConfigManager mConfigManager;
+    private static ConfigManager mConfMgrInstance;
     private static Config mConfig;
 
     /**
-     * Creates a vStoreConfig object. Reads the settings from the shared preferences.
-     * @param downloadConfig Set this to true if the node- and rule-configuration 
-     * 		  file should be downloaded.
-     *        If you set this to false, the second parameter is ignored
-     * @param url The url where to download the file.
+     * Creates a vStoreConfig object. Reads the settings from the last configuration saved on disk.
      */
-    private ConfigManager(boolean downloadConfig, String url) {
+    private ConfigManager() {
         //Start NodeManager
         mNodeManager = NodeManager.getInstance();
-
-        refreshConfig();
-
-        if(downloadConfig && url != null) {
-            downloadConfig(url);
-        }
+        readConfig();
     }
 
-    /**
-     * Notice: This method will only provide a default configuration and will not reflect
-     * the user defined settings.
-     */
-    public static ConfigManager getDefault() {
-        return new ConfigManager(false, null);
+    public static void initialize() {
+        if (mConfMgrInstance == null)
+        {
+            mConfMgrInstance = new ConfigManager();
+        }
     }
 
     /**
      * Gets the instance of the vStore config manager.
-     * 
-     * @param downloadConfig Set this to true if the node- and rule-configuration 
-     * 		  file should be downloaded.
-     * @param url The address from which to download the configuration.
-     * 
-     * @return The instance of the configuration.
+     * To refresh / re-download the configuration, use {@link ConfigManager#download(String)}.
+     *
+     * @return The instance of the configuration manager.
      */
-    public static ConfigManager getInstance(boolean download, String url) {
-        if (mConfigManager == null) 
-        {
-            mConfigManager = new ConfigManager(true, url);
-        }
-        else 
-        {
-            mConfigManager.refreshConfig();
-        }
-        return mConfigManager;
+    public static ConfigManager get() {
+        initialize();
+        return mConfMgrInstance;
     }
 
-    private void refreshConfig() {
-
+    /**
+     * Reads the configuration from the local file.
+     */
+    private void readConfig() {
         //Get configured noise thresholds from shared prefs
         mDefaultRMSThreshold  = ConfigFile.getInt(ConfigConstants.DEFAULT_RMS_THRESHOLD_KEY, VNoise.DEFAULT_THRESHOLD_RMS);
         mDefaultDBThreshold = ConfigFile.getInt(ConfigConstants.DEFAULT_DB_THRESHOLD_KEY, VNoise.DEFAULT_TRESHOLD_DB);
@@ -123,19 +93,27 @@ public class ConfigManager {
 
     /**
      * Downloads the configuration file from the given url. 
-     * Warning: This will block!
+     * Warning: This will block until the download is finished or has failed.
      * 
-     * @param url The url from which to download the configuration
-     * @return True, if the configuration was downloaded and processed successfully. False if not. 
+     * @param url The url to the the configuration file (must be in JSON format, see
+     *            documentation).
+     * @throws VStoreException if the download of the config file failed
      */
-    boolean downloadConfig(String url) {
+    public void download(String url) throws VStoreException {
+        if(url == null || url.equals(""))
+        {
+            throw new VStoreException(ErrorCode.CONFIG_DOWNLOAD_FAILED,
+                    ErrorMessages.CONFIG_DOWNLOAD_FAILED);
+        }
     	final OkHttpClient client = new OkHttpClient();
     	Request request = new Request.Builder()
     	        .url(url)
     	        .build();
     	try (Response response = client.newCall(request).execute()) 
     	{
-    		if (!response.isSuccessful()) throw new IOException("Unexpected code " + response);
+    		if (!response.isSuccessful())
+    		    throw new VStoreException(ErrorCode.CONFIG_DOWNLOAD_FAILED,
+                        ErrorMessages.RESPONSE_WRONG_STATUS_CODE + response);
 
     		try 
     		{
@@ -145,15 +123,16 @@ public class ConfigManager {
     		{
     			//JSON parsing failed. This is bad.
     			e.printStackTrace();
-    			return false;
+                throw new VStoreException(ErrorCode.CONFIG_DOWNLOAD_FAILED,
+                        ErrorMessages.JSON_PARSING_FAILED);
 			}
 	    } 
     	catch (IOException e) 
     	{
 			e.printStackTrace();
-			return false;
+            throw new VStoreException(ErrorCode.CONFIG_DOWNLOAD_FAILED,
+                    ErrorMessages.REQUEST_FAILED);
 		}
-    	return true;
     }
     
     private void parseJsonConfig(String strConfig) throws ParseException {
@@ -178,11 +157,9 @@ public class ConfigManager {
         {
         	try
         	{
-        
 	            JSONArray rules = (JSONArray)j.get("rules");
 	            RulesDBHelper helper = new RulesDBHelper();
-				
-	            
+
 	            for(int i = 0; i<rules.size(); ++i) 
 	            {
 	                JSONObject rule = (JSONObject)rules.get(i);
@@ -252,34 +229,6 @@ public class ConfigManager {
     public Matching.MatchingMode getMatchingMode() {
         return mConfig.matchingMode;
     }
-    /**
-     * Returns the File object of the directory where the framework stores user files.
-     *
-     * @return A File object describing the stored files directory.
-     */
-    public static File getStoredFilesDir() {
-        File dir = new File(FileUtils.getVStoreDir(), STORED_FILES_DIR);
-        dir.mkdirs();
-        return dir;
-    }
-
-    public static File getDownloadedFilesDir() {
-        File dir = new File(FileUtils.getVStoreDir(), DOWNLOADED_FILES_DIR);
-        dir.mkdirs();
-        return dir;
-    }
-
-    /**
-     * Returns the File object of the directory where the framework stores thumbnail files.
-     * 
-     * @return A File object describing the thumbnail directory.
-     */
-    public static File getThumbnailsDir() {
-        File dir = new File(FileUtils.getVStoreDir(), THUMBNAILS_DIR);
-        dir.mkdirs();
-        return dir;
-    }
-
 
     /**
      * Sets the flag to allow/disallow a decision rule to decide for storing a file on
@@ -296,7 +245,6 @@ public class ConfigManager {
      * Sets the default dB threshold for a noise context.
      * If the dB value of a noise context is higher than the given threshold, it will be considered
      * as "not silent".
-     * @param c The Android context.
      * @param dbThresh The desired threshold.
      */
     static void setDefaultDBThresh(int dbThresh) {
@@ -305,7 +253,6 @@ public class ConfigManager {
 
     /**
      * Sets the matching mode setting and stores it.
-     * @param c The Android context
      * @param mode The matching mode
      */
     public void setMatchingMode(Matching.MatchingMode mode) {

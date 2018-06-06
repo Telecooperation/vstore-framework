@@ -1,21 +1,21 @@
 package vstore.framework.communication.threads;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
-
 import org.greenrobot.eventbus.EventBus;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import vstore.framework.config.ConfigManager;
 import vstore.framework.db.table_helper.FileDBHelper;
 import vstore.framework.exceptions.DatabaseException;
+import vstore.framework.file.FileManager;
 import vstore.framework.file.VStoreFile;
 import vstore.framework.file.events.FileDeletedEvent;
 import vstore.framework.node.NodeInfo;
@@ -31,8 +31,10 @@ import vstore.framework.utils.FrameworkUtils;
 public class DeleteFilesThread extends Thread {
 
 	private OkHttpClient httpClient;
-	
-	public DeleteFilesThread() { }
+
+	public DeleteFilesThread() {
+		httpClient = new OkHttpClient();
+	}
 	
 	@Override
 	public void run() {
@@ -68,10 +70,8 @@ public class DeleteFilesThread extends Thread {
             NodeInfo node = nodemgr.getNode(f.getNodeID());
             if(node == null) { continue; }
             //Node information found
-            
-            
+
             String url = node.getDeleteUri(f.getUUID(), FrameworkUtils.getDeviceIdentifier());
-            
             Request request = new Request.Builder()
             		.url(url)
             		.delete()
@@ -93,15 +93,10 @@ public class DeleteFilesThread extends Thread {
 	                EventBus.getDefault().post(new FileDeletedEvent(f.getUUID()));
 	            }    
             } 
-            catch (IOException e) {
+            catch (IOException | ParseException e) {
 				e.printStackTrace();
-				continue;
-			} 
-            catch (ParseException e) {
-				e.printStackTrace();
-				continue;
 			}
-        }
+		}
 	}
 	
 	private void doDelete(FileDBHelper dbHelper, VStoreFile f) {
@@ -110,7 +105,7 @@ public class DeleteFilesThread extends Thread {
         //Delete file and thumbnail
         FileUtils.deleteFile(new File(f.getFullPath()));
         FileUtils.deleteFile(
-        		new File(ConfigManager.getThumbnailsDir(), f.getUUID() + ".png"));
+        		new File(FileManager.getThumbnailsDir(), f.getUUID() + ".png"));
     }
 
 	

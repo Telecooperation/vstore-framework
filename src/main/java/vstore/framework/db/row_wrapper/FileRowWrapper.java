@@ -5,8 +5,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Date;
 
-import vstore.framework.config.ConfigManager;
 import vstore.framework.db.DBSchema;
+import vstore.framework.file.FileManager;
 import vstore.framework.file.VStoreFile;
 
 /**
@@ -48,7 +48,7 @@ public class FileRowWrapper {
 	        {
 	            f = new VStoreFile(uuid,
 	                    descriptiveName,
-	                    ConfigManager.getStoredFilesDir().getAbsolutePath(),
+	                    FileManager.getStoredFilesDir().getAbsolutePath(),
 	                    mime,
 	                    extension,
 	                    new Date(dateCreation),

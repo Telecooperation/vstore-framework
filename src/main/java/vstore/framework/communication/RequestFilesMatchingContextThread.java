@@ -1,14 +1,12 @@
 package vstore.framework.communication;
 
-import static vstore.framework.communication.ApiConstants.ROUTE_FILES_MATCHING_CONTEXT;
-
-import java.io.IOException;
-
 import org.greenrobot.eventbus.EventBus;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+
+import java.io.IOException;
 
 import okhttp3.FormBody;
 import okhttp3.OkHttpClient;
@@ -16,6 +14,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import vstore.framework.context.SearchContextDescription;
+import vstore.framework.error.ErrorCode;
 import vstore.framework.error.ErrorMessages;
 import vstore.framework.exceptions.VStoreException;
 import vstore.framework.file.MatchingResultRow;
@@ -26,17 +25,24 @@ import vstore.framework.node.NodeInfo;
 import vstore.framework.node.NodeManager;
 import vstore.framework.utils.FrameworkUtils;
 
+import static vstore.framework.communication.ApiConstants.ROUTE_FILES_MATCHING_CONTEXT;
+
 public class RequestFilesMatchingContextThread extends Thread {
-	String mNodeId;
-    SearchContextDescription mUsageContext;
-    String mRequestId;
+	private String mNodeId;
+    private SearchContextDescription mUsageContext;
+    private String mRequestId;
     
     private final OkHttpClient httpClient;
     
-    public RequestFilesMatchingContextThread(String nodeUUID, SearchContextDescription usageContext, String requestId) throws Exception {
-    	if(nodeUUID == null || nodeUUID.equals("") || requestId == null || requestId.equals("") || usageContext == null)
+    public RequestFilesMatchingContextThread(String nodeUUID,
+                                             SearchContextDescription usageContext,
+                                             String requestId)
+            throws Exception
+    {
+    	if(nodeUUID == null || nodeUUID.equals("") || requestId == null
+                || requestId.equals("") || usageContext == null)
     	{
-    		throw new VStoreException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
+    		throw new VStoreException(ErrorCode.PARAMETERS_MUST_NOT_BE_NULL, ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
     	}
     	
         mNodeId = nodeUUID;
@@ -49,7 +55,8 @@ public class RequestFilesMatchingContextThread extends Thread {
     public void run() {
     	final NodeManager manager = NodeManager.getInstance();
         final NodeInfo node = manager.getNode(mNodeId);
-        if(node == null) return; 
+        if(node == null) return;
+
         //Assemble the request address using node information (address, port) and the
         //route for requesting files matching context
         final String address = node.getAddress() + ":" + node.getPort() + ROUTE_FILES_MATCHING_CONTEXT;
@@ -75,10 +82,19 @@ public class RequestFilesMatchingContextThread extends Thread {
 
             
             JSONParser p = new JSONParser();
-            JSONObject result = (JSONObject) p.parse(response.body().string());
+            JSONObject result;
+            try
+            {
+                result = (JSONObject) p.parse(response.body().string());
+            }
+            catch(NullPointerException e)
+            {
+                e.printStackTrace();
+                return;
+            }
             
             //Check if an error occurred on the server side
-            if(!result.containsKey("error") || (boolean)result.get("error")==true) 
+            if(!result.containsKey("error") || (boolean) result.get("error"))
             {
             	//Do nothing on error
         		postEmptyEvent(node.getUUID());
@@ -139,21 +155,16 @@ public class RequestFilesMatchingContextThread extends Thread {
             }
             postEmptyEvent(node.getUUID());
         } 
-        catch (IOException e) 
+        catch (IOException | ParseException e)
         {
-			// Error when sending the request to the node.
+			// Error when sending the request to the node
+            // or error when parsing the response as JSON
 			e.printStackTrace();
 			postEmptyEvent(node.getUUID());
-		} 
-        catch (ParseException e) 
-        {
-			// Error when parsing the response as JSON
-			e.printStackTrace();
-			postEmptyEvent(node.getUUID());
-		}           
+		}
     }
     
-    void postEmptyEvent(String nodeId) {
+    private void postEmptyEvent(String nodeId) {
         //Post the same event, but without content
         EventBus.getDefault().postSticky(
                 new NewFilesMatchingContextEvent(nodeId, mRequestId));

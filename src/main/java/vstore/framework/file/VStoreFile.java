@@ -6,6 +6,7 @@ import java.io.Serializable;
 import java.util.Date;
 
 import vstore.framework.context.ContextDescription;
+import vstore.framework.error.ErrorCode;
 import vstore.framework.error.ErrorMessages;
 import vstore.framework.exceptions.VStoreException;
 
@@ -84,7 +85,7 @@ public class VStoreFile implements Serializable {
     {
     	if(uuid == null || uuid.equals("") || f == null || meta == null)
     	{
-    		throw new VStoreException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
+    		throw new VStoreException(ErrorCode.PARAMETERS_MUST_NOT_BE_NULL, ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
     	}
     	mUUID = uuid;
     	mMeta = meta;

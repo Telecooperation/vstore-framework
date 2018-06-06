@@ -1,11 +1,11 @@
 package vstore.framework.context.types.activity;
 
-import java.io.Serializable;
-import java.util.HashMap;
-
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+
+import java.io.Serializable;
+import java.util.HashMap;
 
 import vstore.framework.context.types.VContextType;
 
@@ -66,9 +66,9 @@ public class VActivity extends VContextType<VActivity> implements Serializable {
     }
 
     /**
-     * Sets the type for this activity (see {@link ActivityType}).
+     * Sets the type for this activity.
      * 
-     * @param type
+     * @param type (see {@link ActivityType})
      */
     public void setType(ActivityType type) {
         mType = type;

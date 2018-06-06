@@ -1,20 +1,12 @@
 package vstore.framework.matching;
 
-import static vstore.framework.node.NodeType.CLOUD;
-import static vstore.framework.node.NodeType.CLOUDLET;
-import static vstore.framework.node.NodeType.CORENET;
-import static vstore.framework.node.NodeType.GATEWAY;
-import static vstore.framework.node.NodeType.OWNCLOUD;
-import static vstore.framework.node.NodeType.PHONE;
-import static vstore.framework.node.NodeType.UNKNOWN;
+import org.greenrobot.eventbus.EventBus;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-
-import org.greenrobot.eventbus.EventBus;
 
 import vstore.framework.context.ContextDescription;
 import vstore.framework.context.RuleContextDescription;
@@ -30,6 +22,14 @@ import vstore.framework.node.NodeType;
 import vstore.framework.rule.DecisionLayer;
 import vstore.framework.rule.VStoreRule;
 import vstore.framework.utils.ContextUtils;
+
+import static vstore.framework.node.NodeType.CLOUD;
+import static vstore.framework.node.NodeType.CLOUDLET;
+import static vstore.framework.node.NodeType.CORENET;
+import static vstore.framework.node.NodeType.GATEWAY;
+import static vstore.framework.node.NodeType.OWNCLOUD;
+import static vstore.framework.node.NodeType.PHONE;
+import static vstore.framework.node.NodeType.UNKNOWN;
 
 /**
  * This class handles the storage decision, e.g. matching a file to a storage node based on the
@@ -69,8 +69,10 @@ public class Matching {
      *
      * @param f The file to make the decision for. Must not be null and should contain a context description.
      * @param mode The matching mode, one of the enum type {@link Matching.MatchingMode}.
+     *
+     * @throws RuntimeException in case some parameters are null
      */
-    public Matching(VStoreFile f, MatchingMode mode) {
+    public Matching(VStoreFile f, MatchingMode mode) throws RuntimeException{
         if(f == null) 
         {
             throw new RuntimeException("File must not be null.");

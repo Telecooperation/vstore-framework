@@ -24,7 +24,6 @@ public class VNetwork extends VContextType<VNetwork> {
     private boolean mIsMobileConnected;
     /**
      * Denotes, if the mobile network is of type 3G, 3.5G or 4G.
-     * See {@link vstoreframework.utils.Connectivity}.
      */
     private boolean mIsMobileNetworkFast;
     /**
@@ -33,7 +32,6 @@ public class VNetwork extends VContextType<VNetwork> {
     private String mWifiSSID;
     /**
      * The mobile network type of the network context (e.g. 2G, 3G, 3.5G, 4G).
-     * See {@link vstoreframework.utils.Connectivity}.
      */
     private String mMobileNetworkType;
 
@@ -44,17 +42,32 @@ public class VNetwork extends VContextType<VNetwork> {
      */
 	public VNetwork(String json) throws ParseException {
         JSONObject j = (JSONObject)(new JSONParser().parse(json));
-        
-        setWifiConnected((boolean)j.getOrDefault("isWifiConnected", false));
-        setMobileConnected((boolean)j.getOrDefault("isMobileConnected", false));
-        setMobileNetworkFast((boolean)j.getOrDefault("isMobileNetworkFast", false));
-        setWifiSSID((String)j.getOrDefault("wifiSsid", ""));
-        
-        String mobileNet = (String)j.getOrDefault("mobileNetworkType", "");
+
+        Object wifiConnected = j.get("isWifiConnected");
+        if(wifiConnected == null) { wifiConnected = false; }
+        setWifiConnected((boolean)wifiConnected);
+
+        Object mobileConnected = j.get("isMobileConnected");
+        if(mobileConnected == null) { mobileConnected = false; }
+        setMobileConnected((boolean)mobileConnected);
+
+        Object mobileNetFast = j.get("isMobileNetworkFast");
+        if(mobileNetFast == null) { mobileNetFast = false; }
+        setMobileNetworkFast((boolean)mobileNetFast);
+
+        Object wifissid = j.get("wifiSsid");
+        if(wifissid == null) { wifissid = ""; }
+        setWifiSSID((String)wifissid);
+
+        Object mobnettype = j.get("mobileNetworkType");
+        if(mobnettype == null) { mobnettype = ""; }
+        String mobileNet = (String)mobnettype;
         if(mobileNet.equals("")) { setMobileNetworkType(null); }
         else { setMobileNetworkType(mobileNet); }
-        
-        setTimestamp((long)j.getOrDefault("timestamp", System.currentTimeMillis()));
+
+        Object timestamp = j.get("timestamp");
+        if(timestamp == null) { timestamp = System.currentTimeMillis(); }
+        setTimestamp((long)timestamp);
     }
 
     /**
@@ -64,7 +77,6 @@ public class VNetwork extends VContextType<VNetwork> {
      * @param mobileFast Set this to true if mobile is fast.
      * @param wifiSsid SSID of the WiFi network
      * @param mobileNetType Type of mobile network (2G, 3G, 4G, Unknown).
-     *                      See {@link vstoreframework.utils.Connectivity}
      */
     public VNetwork(boolean wifiConnected, boolean mobileConnected, boolean mobileFast,
                     String wifiSsid, String mobileNetType) {
@@ -92,7 +104,6 @@ public class VNetwork extends VContextType<VNetwork> {
 
     /**
      * @return True, if the mobile network is of type 3G, 3.5G or 4G.
-     * See {@link vstoreframework.utils.Connectivity}.
      */
     public boolean isMobileNetworkFast() {
         return mIsMobileNetworkFast;
@@ -107,7 +118,6 @@ public class VNetwork extends VContextType<VNetwork> {
 
     /**
      * @return The mobile network type of the network context (e.g. 2G, 3G, 3.5G, 4G).
-     * See {@link vstoreframework.utils.Connectivity}.
      */
     public String getMobileNetworkType() {
         return mMobileNetworkType;
@@ -133,7 +143,6 @@ public class VNetwork extends VContextType<VNetwork> {
 
     /**
      * Sets the flag if mobile data is fast in this network context (e.g. 3G, 3.5G or 4G).
-     * See {@link vstoreframework.utils.Connectivity}.
      * @param mobileFast Set this to true, if mobile data should be treated as connected
      *                   in this network context.
      */
@@ -152,7 +161,6 @@ public class VNetwork extends VContextType<VNetwork> {
     /**
      * Sets the mobile network type for this network context.
      * Should be either "2G", "3G", "3.5G", or "4G".
-     * See {@link vstoreframework.utils.Connectivity}.
      * @param mobileNetType The mobile network type as string.
      */
     public void setMobileNetworkType(String mobileNetType) { mMobileNetworkType = mobileNetType; }
@@ -170,13 +178,6 @@ public class VNetwork extends VContextType<VNetwork> {
         json.put("mobileNetworkType", getMobileNetworkType());
         json.put("timestamp", getTimestamp());
         return json;
-    }
-
-    /**
-     * @return An array of supported mobile network types.
-     */
-    public static String[] getSupportedMobileTypes() {
-        return new String[] { "2G", "3G", "3.5G", "4G" };
     }
 
     /**

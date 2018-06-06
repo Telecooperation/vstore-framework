@@ -3,10 +3,14 @@ package vstore.framework.communication.download;
 import java.io.File;
 import java.util.Map;
 
+import vstore.framework.communication.download.events.DownloadFailedEvent;
+import vstore.framework.communication.download.events.DownloadProgressEvent;
+import vstore.framework.communication.download.events.MetadataDownloadFailedEvent;
 import vstore.framework.communication.download.events.MetadataEvent;
 import vstore.framework.communication.download.threads.FileDownloadThread;
 import vstore.framework.communication.download.threads.MetadataDownloadThread;
-import vstore.framework.config.ConfigManager;
+import vstore.framework.communication.download.threads.ThumbnailDownloadThread;
+import vstore.framework.file.FileManager;
 import vstore.framework.matching.FileNodeMapper;
 import vstore.framework.node.NodeInfo;
 import vstore.framework.node.NodeManager;
@@ -42,9 +46,13 @@ public class Downloader {
         //Start download thread
         try 
         {
+            File outputDir = FileManager.getDownloadedFilesDir();
+            if(dir != null) { outputDir = dir; }
+
 			FileDownloadThread t 
 				= new FileDownloadThread(uuid, node, 
-						ConfigManager.getDownloadedFilesDir(), requestId);
+						outputDir, requestId);
+            t.start();
 		} 
         catch (Exception e) 
         {
@@ -55,25 +63,9 @@ public class Downloader {
     }
 
     /**
-     * This method downloads a thumbnail directly into the given image view.
-     * @param c The Android context.
-     * @param uuid The uuid of the file to download the thumbnail for.
-     * @param view The view to load the thumbnail into.
-     */
-    /*public static void downloadThumbnail( String uuid, ImageView view) {
-        if(c != null && uuid != null && view != null) {
-            //Trigger the download of the URL asynchronously into the image view.
-            Ion.with(view)
-                    .placeholder(R.mipmap.file_download)
-                    .error(R.drawable.ic_unknown_file)
-                    .load(getUriForThumbnail( uuid));
-        }
-    }*/
-
-    /**
      * This method downloads metadata for the given file UUID. Will only work if
      * you are the owner of the file or if the file is public.
-     * You will be notified via {@link MetadataEvent} or {@link MetadataDownloadFailedEvent} 
+     * You will be notified via {@link MetadataEvent} or {@link MetadataDownloadFailedEvent}
      * when the request has finished.
      *
      * @param uuid The file's UUID.
@@ -106,14 +98,17 @@ public class Downloader {
      * 
      * @param fileId The identifier of the file.
      * @param outputDir The directory where to place the downloaded file.
-     * @return 
+     * @return True, if a request was started for one or more storage nodes.
+     *         False, if no nodes available.
      */
     public static boolean queryAllNodesForFile(String fileId, File outputDir) {
     	if(fileId == null || fileId.equals("") || outputDir == null) { return false; }
     	
     	final NodeManager manager = NodeManager.getInstance();
         Map<String, NodeInfo> nodes = manager.getNodeList();
-        
+
+        if(nodes.size() == 0) return false;
+
         for(NodeInfo n : nodes.values()) 
         {
         	downloadFullFileFromNode(fileId, n.getUUID(), "", outputDir);
@@ -135,5 +130,28 @@ public class Downloader {
     
         NodeManager manager = NodeManager.getInstance();
         return manager.getNode(nodeId).getThumbnailUri(uuid, FrameworkUtils.getDeviceIdentifier());
+    }
+
+    /**
+     * This method downloads a thumbnail for a given file.
+     * @param fileId The UUID of the file to request a thumbnail for.
+     */
+    public static void downloadThumbnail(String fileId) {
+        String uri = getUriForThumbnail(fileId);
+        try {
+            String nodeId = FileNodeMapper.getMapper().getNodeId(fileId);
+            if (nodeId.equals("")) return;
+            NodeManager mgr = NodeManager.getInstance();
+
+            ThumbnailDownloadThread thumbThread = new ThumbnailDownloadThread(
+                    fileId,
+                    mgr.getNode(nodeId),
+                    FileManager.getThumbnailsDir());
+            thumbThread.start();
+        }
+        catch(Exception e)
+        {
+            e.printStackTrace();
+        }
     }
 }

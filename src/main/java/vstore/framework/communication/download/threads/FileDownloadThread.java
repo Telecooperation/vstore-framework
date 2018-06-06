@@ -1,15 +1,12 @@
 package vstore.framework.communication.download.threads;
 
-import java.io.File;
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.locks.Lock;
-
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.concurrent.ThreadLocalRandom;
 
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
@@ -46,13 +43,13 @@ public class FileDownloadThread extends Thread {
 	private final String requestId;
 	private MetaData meta;
 
-    private Object metaWaitLock;
+    private final Object metaWaitLock;
 
     /**
      * @param fileUuid The identifier of the file to download.
      * @param node The NodeInfo object of the node to download the file from.
-     * @param url The url from which to download.
-     * @param target The target directory where to save the data. 
+     * @param targetDirectory The target directory where to save the data.
+	 * @param requestId An identifier of the request.
      */
     public FileDownloadThread(String fileUuid, NodeInfo node, 
     		File targetDirectory, String requestId) 
@@ -63,9 +60,9 @@ public class FileDownloadThread extends Thread {
     		throw new Exception(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
     	}
     	if(requestId == null || requestId.equals("")) 
-    	{ 
-    		requestId = "FileDownload" + ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE); 
-		} 
+    	{
+    		requestId = "FileDownload" + ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE);
+		}
 
     	this.fileUuid = fileUuid;
     	this.node = node;
@@ -117,16 +114,16 @@ public class FileDownloadThread extends Thread {
     	final ProgressListener progressListener = new ProgressListener() {
     	    //boolean firstUpdate = true;
 
-    	    @Override 
-    	    public void update(long bytesRead, long contentLength, boolean done) 
+    	    @Override
+    	    public void update(long bytesRead, long contentLength, boolean done)
     	    {
-				if (done) 
+				if (done)
 				{
 					System.out.println("completed");
-				} 
-				else 
+				}
+				else
 				{
-					if (contentLength != -1) 
+					if (contentLength != -1)
 					{
 						int progress = (int) ((float) bytesRead / contentLength * 100);
 						if (progress > 100) {
@@ -139,7 +136,7 @@ public class FileDownloadThread extends Thread {
 				}
 	    	}
     	};
-    	
+
     	//Create new HTTP client with progress interceptor
 		OkHttpClient client = new OkHttpClient.Builder()
 	        .addNetworkInterceptor(new Interceptor() 
@@ -166,8 +163,19 @@ public class FileDownloadThread extends Thread {
 				downloadFailed(new IOException("Unexpected response code: " + response)); 
 				return;
 			}
-			
-			BufferedSource binFile = response.body().source();
+
+            BufferedSource binFile;
+            try
+            {
+                binFile = response.body().source();
+            }
+            catch(NullPointerException ex)
+            {
+                //Should happen rarely!
+                downloadFailed(new IOException("Empty response body!"));
+                return;
+            }
+
 			if (binFile != null) 
 			{
 				//Sink binary into the file
@@ -175,17 +183,6 @@ public class FileDownloadThread extends Thread {
 				BufferedSink sink = Okio.buffer(Okio.sink(outputFile));
 				sink.writeAll(binFile);
 				sink.close();
-				URI uri = null;
-				try 
-				{
-					uri = new URI(outputFile.getAbsolutePath());
-				} 
-				catch (URISyntaxException e) 
-				{
-					downloadFailed(e);
-					return;
-					//Should never happen!
-				}
 
 				//Remove file from download list
 		    	PersistentDownloadList.deleteFileDownloading(fileUuid);

@@ -1,13 +1,12 @@
 package vstore.framework.communication.upload;
 
-import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
+
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -33,11 +32,11 @@ public class Uploader {
 	
 	private static Uploader mInstance;
 	
-	HashMap<String, UploadQueueObject> uploadQueue;
-	HashMap<String, Thread> uploadThreads;
+	private HashMap<String, UploadQueueObject> uploadQueue;
+	private HashMap<String, Thread> uploadThreads;
 	
 	private Uploader() {
-		uploadQueue = new HashMap<String, UploadQueueObject>();
+		uploadQueue = new HashMap<>();
 		readPendingUploadsFromDb();
 		uploadThreads = new HashMap<>();
 		
@@ -47,7 +46,7 @@ public class Uploader {
 	public static Uploader getUploader() {
 		if(mInstance == null) 
 		{
-			return new Uploader();
+			mInstance = new Uploader();
 		}
 		return mInstance;
 	}
@@ -81,7 +80,7 @@ public class Uploader {
 		uploadQueue.put(q_obj.fileId, q_obj);
     }
     
-    private int readPendingUploadsFromDb() {
+    private void readPendingUploadsFromDb() {
     	try
     	{
 	        FileDBHelper dbHelper = new FileDBHelper();
@@ -91,38 +90,35 @@ public class Uploader {
 	        {
 	        	enqueueUpload(f);
 	        }
-	        return pending.size();
-    	}
+            pending.size();
+        }
     	catch(DatabaseException | SQLException e) 
     	{
-    		
-    		return 0;
-    	}
+            e.printStackTrace();
+        }
     }
 
     /**
-     * This method starts an upload thread for each file put into the queue with
-     * {@link Uploader#enqueueUpload()}.
+     * This method starts an upload thread for each file which was put into the queue with
+     * {@link Uploader#enqueueUpload(VStoreFile)}.
      */
     public void startUploads() {
-    	Iterator<UploadQueueObject> iter = uploadQueue.values().iterator();
-    	while(iter.hasNext())
-		{
-    		UploadQueueObject qObj = iter.next();
-    		//Ignore if upload is already running
-    		if(uploadThreads.containsKey(qObj.fileId)) continue;
-    		
-    		try 
-    		{
-				FileUploadThread t = new FileUploadThread(qObj);
-				uploadThreads.put(qObj.fileId, t);
-				t.start();
-			} 
-    		catch (Exception e) 
-    		{
-				e.printStackTrace();
-			}
-		}
+        for (UploadQueueObject qObj : uploadQueue.values())
+        {
+            //Ignore if upload is already running
+            if (uploadThreads.containsKey(qObj.fileId)) continue;
+
+            try
+            {
+                FileUploadThread t = new FileUploadThread(qObj);
+                uploadThreads.put(qObj.fileId, t);
+                t.start();
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+            }
+        }
     }
     
     @Subscribe(threadMode = ThreadMode.MAIN)
