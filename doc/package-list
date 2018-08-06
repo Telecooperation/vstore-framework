@@ -1,0 +1,13 @@
+vstore.android_filebox
+vstore.android_filebox.aware
+vstore.android_filebox.config_activity
+vstore.android_filebox.context_fragment
+vstore.android_filebox.context_monitor
+vstore.android_filebox.events
+vstore.android_filebox.files_fragment
+vstore.android_filebox.qrcode
+vstore.android_filebox.rules_elements
+vstore.android_filebox.rules_elements.decision_dialog
+vstore.android_filebox.search_fragment
+vstore.android_filebox.services
+vstore.android_filebox.utils

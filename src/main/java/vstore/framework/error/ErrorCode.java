@@ -1,0 +1,20 @@
+package vstore.framework.error;
+
+/**
+ * This enum contains the possible error codes of the Framework.
+ */
+public enum ErrorCode {
+    BASE_DIRECTORY_DOES_NOT_EXIST,
+    COPYING_INTO_FRAMEWORK_FAILED,
+    URI_SCHEME_NOT_SUPPORTED,
+    FILE_ALREADY_EXISTS,
+    PARAMETERS_MUST_NOT_BE_NULL,
+    USAGE_CONTEXT_MUST_NOT_BE_NULL,
+    REQUEST_NOT_STARTED,
+    DB_LOCAL_ERROR,
+    CONFIG_CONNECTION_FAILED,
+    CONFIG_DOWNLOAD_FAILED,
+    CONFIG_PARSE_ERROR,
+    FILE_NOT_FOUND,
+    MASTERNODE_WRONG_RESPONSE
+};
