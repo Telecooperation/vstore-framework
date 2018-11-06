@@ -1,9 +1,12 @@
 # vStore Framework
 ## Authors
 
-Nicolas Himmelmann, Telecooperation Lab, TU Darmstadt
+**Project leader:** 
+[[Julien Gedeon]](https://www.informatik.tu-darmstadt.de/telekooperation/telecooperation_group/staff_1/staff_1_details_23872.en.jsp)
 
-Julien Gedeon, Telecooperation Lab, TU Darmstadt
+**Developers:**
+Nicolas Himmelmann
+
 
 ## Contents
 
@@ -156,5 +159,6 @@ UploadFailedPermanentlyEvent - Published, when the upload failed permanently (af
 For further information, please see the documentation created by JavaDoc, or refer to the sample application for Android (vstore-android-filebox).
 
 ## Paper
+Our research on *vStore* was published and awarded best paper at the 2018 MobiCASE conference. If you use our framework, please consider citing the following paper: 
 
-J. Gedeon, N. Himmelmann, P. Felka, F. Herrlich, M. Stein, M. Mühlhäuser. "vStore: A Context-Aware Framework for Mobile Micro-Storage at the Edge" [[Download here]](https://www.tk.informatik.tu-darmstadt.de/fileadmin/user_upload/Group_TK/filesDownload/Published_Papers/JG/gedeon_vstore.pdf)
+J. Gedeon, N. Himmelmann, P. Felka, F. Herrlich, M. Stein, M. Mühlhäuser. "vStore: A Context-Aware Framework for Mobile Micro-Storage at the Edge" [[PDF]](https://fileserver.tk.informatik.tu-darmstadt.de/JG/vstore/gedeon_vstore.pdf)  [[BibTeX]](https://fileserver.tk.informatik.tu-darmstadt.de/JG/vstore/vstore.bib)
