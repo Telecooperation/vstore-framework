@@ -81,7 +81,6 @@ public class RulesDBHelper {
        		   + "SET "
                 + getFieldList(true)
        		    + " WHERE " + DBSchema.RulesTable.ID + " = ?";
-    	
     	PreparedStatement pstmt = DBHelper.get().getConnection().prepareStatement(sql);
         pstmt.setString(1, rule.getUUID());
         pstmt.setString(2, rule.getName());
@@ -93,9 +92,10 @@ public class RulesDBHelper {
         pstmt.setString(8, rule.getStartHour()+":"+rule.getStartMinutes());
         pstmt.setString(9, rule.getEndHour()+":"+rule.getEndMinutes());
         pstmt.setBoolean(10, rule.isGlobal());
-        pstmt.setBoolean(11, rule.isStoreMultiple());
-        pstmt.setInt(12, rule.getReplicationFactor());
+        pstmt.setInt(11, rule.getReplicationFactor());
+        pstmt.setBoolean(12, rule.isStoreMultiple());
         pstmt.setFloat(13, rule.getDetailScore());
+
         pstmt.executeUpdate();
 
         //Save updated mime type information for the rule.
@@ -119,8 +119,8 @@ public class RulesDBHelper {
     	PreparedStatement pstmt = DBHelper.get().getConnection().prepareStatement(sql);
         pstmt.setString(1, uuid);
         ResultSet rs  = pstmt.executeQuery();
-        
-        if(!rs.first()) { return null; }
+
+        if (!rs.next()) {return null; }
 
         RulesRowWrapper wrp = new RulesRowWrapper(rs);
         VStoreRule rule = wrp.getRule();
@@ -153,13 +153,10 @@ public class RulesDBHelper {
     	ResultSet rs = stmt.executeQuery(sql);
         
         List<VStoreRule> rules = new ArrayList<>();
-        if(rs.first()) {
+        while (rs.next()) {
             RulesRowWrapper wrp = new RulesRowWrapper(rs);
             rules.add(wrp.getRule());
-            while (rs.next()) {
-                wrp = new RulesRowWrapper(rs);
-                rules.add(wrp.getRule());
-            }
+
         }
         
         //For each rule, get the corresponding mime types from the second table.
@@ -215,7 +212,7 @@ public class RulesDBHelper {
         ResultSet rs  = pstmt.executeQuery();
     	
         List<DecisionLayer> layers = new ArrayList<>();
-        if(rs.first()) {
+        if(rs.next()) {
             do {
                 DecisionLayer d = new DecisionLayer();
                 d.isSpecific = (rs.getInt(DBSchema.DecisionsPerRuleTable.IS_SPECIFIC) == 1);
@@ -388,7 +385,7 @@ public class RulesDBHelper {
             stmt.setFloat(7, layer.maxRadius);
             stmt.setInt(8, layer.minBwUp);
             stmt.setInt(9, layer.minBwDown);
-            stmt.execute(sql);
+            stmt.execute();
         }
     }
 

@@ -46,7 +46,6 @@ public class NodeDBHelper {
                 + "'" + node.getBandwidthDown() + "')";
         try(Statement stmt = DBHelper.get().getConnection().createStatement()) {
             boolean result = stmt.execute(sql);
-            System.out.println("vStore: Execute: " + result);
             stmt.close();
         }
 }
@@ -110,7 +109,6 @@ public class NodeDBHelper {
     	String sql = "UPDATE " + DBSchema.NodesTable.__NAME + " "
       		   + getSetClause(node)
       		   + " WHERE " + DBSchema.NodesTable.UUID + " = ? ";
-        System.out.println("vStore: Updating node with sql: ''" + sql + "''");
     	
     	//Save updated node information
     	try(PreparedStatement pstmt = DBHelper.get().getConnection().prepareStatement(sql)) {

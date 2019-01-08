@@ -19,8 +19,10 @@ dependencies {
     //Compile with android-specific sqlite driver
     if(project.getParent() != null && project.getParent().findProperty("isAndroidProject") == true) {
         compile 'org.sqldroid:sqldroid:1.0.3'
+        println 'Android SQLITe'
     } else {
         compile group: 'org.xerial', name: 'sqlite-jdbc', version: '3.23.1'
+        println 'Generic sqlite-jdbc'
     }
 
     compile group: 'net.sf.py4j', name: 'py4j', version: '0.10.7'
@@ -37,7 +39,7 @@ jar {
 }
 
 //Needed to add all dependencies to the final jar file
-task fatJar(type: Jar) {
+task taskfatJar(type: Jar) {
     manifest {
         attributes 'Implementation-Title': project.name,
                 'Implementation-Version': version,

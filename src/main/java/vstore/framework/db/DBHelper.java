@@ -33,9 +33,15 @@ public class DBHelper {
     	System.setProperty("sqlite.purejava", "true");
 
         try {
-            DriverManager.registerDriver((Driver) Class.forName("org.sqldroid.SQLDroidDriver").newInstance());
+        	if (java.lang.System.getProperty("java.runtime.name").equals("android runtime")) {
+				DriverManager.registerDriver((Driver) Class.forName("org.sqldroid.SQLDroidDriver").newInstance());
+			} else {
+				DriverManager.registerDriver((Driver) Class.forName("org.sqlite.JDBC").newInstance());
+			}
+
         } catch (Exception e) {
             System.out.println("Failed to register Android SQLDroidDriver");
+            e.printStackTrace();
         }
 		db_url = "jdbc:sqlite:" + vstoreDir + "/" + DATABASE_NAME;
 
