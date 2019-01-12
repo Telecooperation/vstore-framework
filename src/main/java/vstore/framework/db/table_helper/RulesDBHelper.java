@@ -95,6 +95,7 @@ public class RulesDBHelper {
         pstmt.setInt(11, rule.getReplicationFactor());
         pstmt.setBoolean(12, rule.isStoreMultiple());
         pstmt.setFloat(13, rule.getDetailScore());
+        pstmt.setString(14, rule.getUUID());
 
         pstmt.executeUpdate();
 

@@ -203,8 +203,8 @@ public class FileDBHelper {
         List<VStoreFile> files = new ArrayList<>();
 		try(PreparedStatement pstmt = DBHelper.get().getConnection().prepareStatement(sql)) {
             pstmt.setInt(1, 1);
-            pstmt.setInt(1, 0);
-            pstmt.setInt(1, 0);
+            pstmt.setInt(2, 0);
+            pstmt.setInt(3, 0);
 
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
@@ -230,8 +230,8 @@ public class FileDBHelper {
 
         try(PreparedStatement pstmt = DBHelper.get().getConnection().prepareStatement(sql)) {
             pstmt.setInt(1, 1);
-            pstmt.setInt(1, 0);
-            pstmt.setInt(1, 0);
+            pstmt.setInt(2, 0);
+            pstmt.setInt(3, 0);
             ResultSet rs = pstmt.executeQuery();
             if (rs.first()) {
                 return rs.getInt("rowcount");
@@ -256,7 +256,7 @@ public class FileDBHelper {
 		try(PreparedStatement pstmt = DBHelper.get().getConnection().prepareStatement(sql))
 		{
 	    	pstmt.setInt(1, 1);
-	    	pstmt.setInt(1, 0);
+	    	pstmt.setInt(2, 0);
 	    	
 	    	ResultSet rs  = pstmt.executeQuery();
 	    	while (rs.next()) 
@@ -357,7 +357,7 @@ public class FileDBHelper {
 	    	pstmt.setString(1, md5_hash);
 	    	
 	    	ResultSet rs  = pstmt.executeQuery();
-            if(!rs.first()) {
+            if(!rs.next()) {
                 return false;
             }
 	    	if(rs.getInt("rowcount") > 0) 
