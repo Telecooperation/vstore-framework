@@ -3,6 +3,8 @@ package vstore.framework.communication.upload;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.sql.SQLException;
@@ -26,8 +28,8 @@ import vstore.framework.utils.IdentifierUtils;
  * can occur in parallel.
  */
 public class Uploader {
-	public static final MediaType JSON
-		= MediaType.parse("application/json; charset=utf-8");
+	private static final Logger LOGGER = LogManager.getLogger(Uploader.class);
+	public static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 	
 	private static Uploader mInstance;
 	
@@ -38,7 +40,6 @@ public class Uploader {
 		uploadQueue = new HashMap<>();
 		readPendingUploadsFromDb();
 		uploadThreads = new HashMap<>();
-		
         EventBus.getDefault().register(this);
 	}
 	
@@ -56,6 +57,8 @@ public class Uploader {
 	 * @param file The file which should be stored.
 	 */
     public void enqueueUpload(VStoreFile file) {
+    	LOGGER.debug("Enqueuing new upload. File UUID: " + file.getUuid() + ", Name: " + file.getDescriptiveName() +
+				     ", Path: " + file.getFullPath() + ", Size: " + file.getFileSize());
         RequestBody body = new Builder()
     		.setType(MultipartBody.FORM)
             .addFormDataPart("filedata", file.getUuid(),
@@ -103,9 +106,9 @@ public class Uploader {
         for (UploadQueueObject qObj : uploadQueue.values())
         {
             //Ignore if upload is already running
-            if (uploadThreads.containsKey(qObj.fileId)) continue;
+			if (uploadThreads.containsKey(qObj.fileId)) continue;
 
-            try
+			try
             {
                 FileUploadThread t = new FileUploadThread(qObj);
                 uploadThreads.put(qObj.fileId, t);
@@ -141,7 +144,6 @@ public class Uploader {
     		}
     	}
     }
-    
-    
-    
+
+
 }

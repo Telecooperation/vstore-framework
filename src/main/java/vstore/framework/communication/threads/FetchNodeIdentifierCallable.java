@@ -1,5 +1,7 @@
 package vstore.framework.communication.threads;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -20,6 +22,7 @@ import vstore.framework.node.NodeType;
  */
 public class FetchNodeIdentifierCallable implements Callable<NodeReply> {
 
+    private static final Logger LOGGER = LogManager.getLogger(FetchNodeIdentifierCallable.class);
     NodeInfo nodeInfo;
 
     /**
@@ -41,6 +44,7 @@ public class FetchNodeIdentifierCallable implements Callable<NodeReply> {
      * @return The UUID of the node in case of success. Null otherwise.
      */
     private NodeReply contactNode() {
+        LOGGER.debug("Contacting Node, UUID: " +  nodeInfo.getUUIDUri());
         //Will timeout after 2 seconds.
         final OkHttpClient client = new OkHttpClient.Builder()
                 .connectTimeout(2, TimeUnit.SECONDS)
@@ -50,7 +54,6 @@ public class FetchNodeIdentifierCallable implements Callable<NodeReply> {
         Request request = new Request.Builder()
                 .url(nodeInfo.getUUIDUri())
                 .build();
-
         try (Response response = client.newCall(request).execute())
         {
             if(response != null)

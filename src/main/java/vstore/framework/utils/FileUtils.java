@@ -1,5 +1,8 @@
 package vstore.framework.utils;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -17,6 +20,8 @@ import vstore.framework.file.VFileType;
  * Some utilities for working with files on the filesystem.
  */
 public class FileUtils {
+
+    private static final Logger LOGGER = LogManager.getLogger(FileUtils.class);
 
     /**
      * Prevent instantiation.
@@ -84,12 +89,15 @@ public class FileUtils {
             FileInputStream in = new FileInputStream(inputFile.getAbsolutePath());
             File copiedFile = copyFileFromInputStream(in, inputFile.getName(), outputPath, outputName);
             in.close();
-
+            if (copiedFile==null) {
+                LOGGER.warn("Copied file is null");
+            }
             return copiedFile;
         }  catch (FileNotFoundException fnfe1) {
             return null;
         }
         catch (IOException e) {
+            e.printStackTrace();
             return null;
         }
     }

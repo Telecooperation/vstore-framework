@@ -1,9 +1,13 @@
 package vstore.framework.file.SimplePrefFile;
 
 import java.io.File;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import vstore.framework.error.ErrorCode;
 import vstore.framework.exceptions.VStoreException;
 import vstore.framework.file.FileManager;
@@ -13,9 +17,12 @@ import vstore.framework.file.FileManager;
  */
 public class PrefFileManager {
 
+    private static final Logger LOGGER = LogManager.getLogger(PrefFileManager.class);
+
     private static HashMap<String, PrefFile> prefFiles = new HashMap<>();
 
     public static PrefFile getPrefFile(String filename) throws VStoreException {
+        LOGGER.debug("Getting pref file " + filename);
         if(!prefFiles.containsKey(filename))
         {
             File pref_root = FileManager.get().getPrefFileDir();
@@ -28,7 +35,12 @@ public class PrefFileManager {
             {
                 try {
                     fileObj.createNewFile();
+                    FileWriter fw = new FileWriter(fileObj.getAbsoluteFile());
+                    BufferedWriter bw = new BufferedWriter(fw);
+                    bw.write("{}");
+                    bw.close();
                 } catch (IOException e) {
+                    System.out.println("Error creating file");
                     e.printStackTrace();
                     return null;
                 }

@@ -19,6 +19,7 @@ public class PrefFile {
         if(!f.exists()) { return; }
         origin = f;
         String jsonStr = FileUtils.readStringFromFile(f);
+
         try
         {
             JSONParser p = new JSONParser();
