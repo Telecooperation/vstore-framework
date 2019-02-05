@@ -200,7 +200,7 @@ public class FileUploadThread extends Thread implements ProgressRequestBody.List
 
 	private void uploadDone(String node_id) {
         //Post event for the interested subscribers
-        EventBus.getDefault().postSticky(new UploadDoneEvent(qObject.fileId, node_id));
+        EventBus.getDefault().postSticky(new UploadDoneEvent(node_id,qObject.fileId));
 
         //Post event for the logger
         //TODO Add information about storage node (the identifier)
