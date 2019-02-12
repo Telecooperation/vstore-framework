@@ -1,6 +1,7 @@
 package vstore.framework.logging;
 
 
+import okhttp3.*;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
@@ -14,12 +15,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import okhttp3.MultipartBody;
-import okhttp3.MultipartBody.Builder;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
 import vstore.framework.context.ContextDescription;
 import vstore.framework.context.ContextManager;
 import vstore.framework.context.types.network.VNetwork;
@@ -57,7 +52,7 @@ public class LoggingService extends Thread {
     /**
      * URL of the log storage server.
      */
-    private static final String LOGGING_URL = "http://130.83.163.10:3232/log";
+    private static final String LOGGING_URL = "http://130.83.163.11:3232/log";
     /**
      * Route for logs of file storing/matching
      */
@@ -68,28 +63,47 @@ public class LoggingService extends Thread {
     private static final String ROUTE_DOWNLOAD_LOG = "/download";
     
     private static LoggingService mInstance;
+    private boolean mShouldUpload = false;
 
     private boolean mUploadRunning;
     private HashMap<String, JSONObject> mDownloads;
 
     private volatile boolean shouldStop;
-    
+
+
+    private LoggingService(boolean upload) {
+        EventBus.getDefault().register(this);
+        mUploadRunning = false;
+        mDownloads = new HashMap<>();
+        mShouldUpload = upload;
+        //Start log uploads if any
+        shouldStop = false;
+    }
+
     private LoggingService() {
         EventBus.getDefault().register(this);
         mUploadRunning = false;
         mDownloads = new HashMap<>();
-        
+
         //Start log uploads if any
         shouldStop = false;
     }
-    
+
     public static LoggingService getThread() {
     	if(mInstance == null) {
     		mInstance = new LoggingService();
     	}
     	return mInstance;
     }
-    
+
+    public static LoggingService getThread(boolean upload) {
+        if(mInstance == null) {
+            mInstance = new LoggingService(upload);
+        }
+        return mInstance;
+    }
+
+
     public void run() {
     	while(!shouldStop);
     }
@@ -214,7 +228,7 @@ public class LoggingService extends Thread {
 	    catch (ParseException ignored) { }
 	    LogFile.deleteEntry(evt.fileUUID);
 	    //Start to upload the log
-	    //startLogUploads();
+	    if (mShouldUpload) startLogUploads();
     }
 
     
@@ -238,7 +252,7 @@ public class LoggingService extends Thread {
         //Remove string from the log file.
         LogFile.deleteEntry(evt.fileUUID);
         //Start to upload the log
-        //startLogUploads();
+        if (mShouldUpload) startLogUploads();
     }
 
 	@Subscribe(threadMode = ThreadMode.BACKGROUND)
@@ -305,7 +319,7 @@ public class LoggingService extends Thread {
         }
         writeToUploadFile(LoggingType.DOWNLOAD, evt.fileId, j);
         mDownloads.remove(evt.fileId);
-        //startLogUploads();
+        if (mShouldUpload) startLogUploads();
     }
 
     @Subscribe(threadMode = ThreadMode.BACKGROUND)
@@ -332,7 +346,8 @@ public class LoggingService extends Thread {
     /**
      * Starts the uploads, if there are currently no running uploads.
      */
-    private void startLogUploads() {
+        private void startLogUploads() {
+        System.out.println("LOG UPLOAD");
         //Only start uploads again if they are not running
         if(mUploadRunning) return;
         mUploadRunning = true;
@@ -391,25 +406,24 @@ public class LoggingService extends Thread {
                     return;
             }
             //Try to upload. Will block for each single upload.
-        	RequestBody body = new Builder()
-            		.setType(MultipartBody.FORM)
-                    .addFormDataPart("log", log)
-                    .build();
-        	
+            RequestBody body = new FormBody.Builder()
+                    .add("log", log).build();
+
         	Request request = new Request.Builder()
     		        .url(url)
     		        .post(body)
     		        .build();
         	//Post the log entry to the server
-        	try (Response response = httpClient.newCall(request).execute()) 
+            try (Response response = httpClient.newCall(request).execute())
 		    {
         		if (!response.isSuccessful()) {}
         		
         		String result = response.body().string();
         		if (result != null) 
         		{
-        			JSONObject jResult = (JSONObject) p.parse(result);
-                    if (jResult.containsKey("error") && ((int)jResult.get("error") == 0)
+        		    JSONObject jResult = (JSONObject) p.parse(result);
+
+                    if (jResult.containsKey("error") && ((long)jResult.get("error") == 0)
                             && jResult.containsKey("reply")) 
                     {
                     	//Upload sent successfully
@@ -436,7 +450,7 @@ public class LoggingService extends Thread {
         //Check if new uploads arrived
         if(LogsForUpload.getAll().keySet().size() > 0) 
         {
-            //startLogUploads();
+            if (mShouldUpload) startLogUploads();
         }
     }
 
