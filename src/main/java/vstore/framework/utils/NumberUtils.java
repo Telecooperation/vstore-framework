@@ -1,12 +1,15 @@
 package vstore.framework.utils;
 
-
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Utilities for working with numbers.
  */
 public class NumberUtils {
+
+    private static final Logger LOGGER = LogManager.getLogger(NumberUtils.class);
 
     /**
      * Maps the given number x from the given range to the given new range.
@@ -19,9 +22,14 @@ public class NumberUtils {
      */
     public static float mapToRange(float x, float from_min, float from_max, float to_min, float to_max) {
         if(from_max - from_min != 0) {
-            return (x - from_min) * (to_max - to_min) / (from_max - from_min) + to_min;
+            float result = (x - from_min) * (to_max - to_min) / (from_max - from_min) + to_min;
+            LOGGER.debug("mapToRange: x=" + x + ",from_min=" + from_min + ",from_max=" + from_max + ",to_min=" + to_min + ",to_max=" + to_max);
+            LOGGER.debug("mapToRange result=" + result);
+            return result;
+        } else {
+            LOGGER.warn("mapToRange: max-min is 0");
+            return 0;
         }
-        return 0;
     }
 
     /**
@@ -40,8 +48,10 @@ public class NumberUtils {
                     lastDistance = Math.abs(numbers.get(i) - check);
                 }
             }
+            LOGGER.debug("getClosestNumber to " + check + "is " + lastNumber);
             return lastNumber;
         }
+        LOGGER.warn("getClosestNumber is 0");
         return 0;
     }
 

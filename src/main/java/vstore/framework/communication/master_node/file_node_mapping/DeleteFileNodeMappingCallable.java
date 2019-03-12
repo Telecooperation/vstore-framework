@@ -1,6 +1,8 @@
 package vstore.framework.communication.master_node.file_node_mapping;
 
 import org.json.simple.JSONObject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -19,8 +21,10 @@ import vstore.framework.matching.FileNodeMapper;
 import vstore.framework.utils.IdentifierUtils;
 
 public class DeleteFileNodeMappingCallable implements Callable<Boolean> {
-    public static final MediaType JSON_MEDIATYPE
-            = MediaType.parse("application/json; charset=utf-8");
+
+    private static final Logger LOGGER = LogManager.getLogger(DeleteFileNodeMappingCallable.class);
+
+    public static final MediaType JSON_MEDIATYPE = MediaType.parse("application/json; charset=utf-8");
 
     private String fileId;
 
@@ -36,8 +40,13 @@ public class DeleteFileNodeMappingCallable implements Callable<Boolean> {
     public Boolean call() {
         OkHttpClient httpClient = createClient();
         Request request = buildRequest();
-        if(request == null) { return false; }
-        return handleResponse(httpClient, request);
+        if(request == null) {
+            LOGGER.warn("Request was null");
+            return false;
+        }
+        boolean result = handleResponse(httpClient, request);
+        LOGGER.debug("Request returned " + result);
+        return result;
     }
 
     private OkHttpClient createClient() {
@@ -67,6 +76,7 @@ public class DeleteFileNodeMappingCallable implements Callable<Boolean> {
                     .build();
         }
         catch (MalformedURLException e) {
+            LOGGER.error("Malformed URL");
             e.printStackTrace();
             return null;
         }
@@ -75,15 +85,23 @@ public class DeleteFileNodeMappingCallable implements Callable<Boolean> {
     private Boolean handleResponse(OkHttpClient httpClient, Request req) {
         try (Response response = httpClient.newCall(req).execute())
         {
-            if(response == null || response.code() != 200)
+            if(response == null )
             {
+                LOGGER.warn("Response is null");
                 return false;
             }
+            int resonseCode = response.code();
+            if (resonseCode != 200) {
+                LOGGER.warn("Response code is " + resonseCode);
+                return false;
+            }
+
             FileNodeMapper.getMapper().removeMapping(fileId);
             return true;
         }
         catch (IOException e)
         {
+            LOGGER.error("IO Exception");
             e.printStackTrace();
         }
         return false;

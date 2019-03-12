@@ -7,6 +7,8 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import vstore.framework.communication.CommunicationManager;
 import vstore.framework.communication.RequestFilesMatchingContextThread;
@@ -61,7 +63,10 @@ public class VStore {
      * This field contains the framework instance.
      */
     private static VStore mInstance = null;
-        
+
+
+    private static final Logger LOGGER = LogManager.getLogger(VStore.class);
+
     /**
      * Private constructor for creating a new VStore object. 
      * It initializes all components necessary for operation of the
@@ -73,25 +78,34 @@ public class VStore {
      * @throws VStoreException in case an error occurred.
      */
     private VStore(File baseDir, URL masterNodeAddress) throws VStoreException {
+        LOGGER.debug("VStore constructor called");
+        LOGGER.debug("Initializing base directory...");
         FileManager.initialize(baseDir);
 
-        if(masterNodeAddress == null) { throw new VStoreException(
-                ErrorCode.PARAMETERS_MUST_NOT_BE_NULL, PARAMETERS_MUST_NOT_BE_NULL); }
-        CommunicationManager.initialize(masterNodeAddress);
+        if(masterNodeAddress == null) {
+            LOGGER.error("No master node address specified");
+            throw new VStoreException(
+                ErrorCode.PARAMETERS_MUST_NOT_BE_NULL, PARAMETERS_MUST_NOT_BE_NULL);
 
+        }
+        LOGGER.debug("Initializing Communication Manager...");
+        CommunicationManager.initialize(masterNodeAddress);
 
         //Generate device identifier if it does not exist
         IdentifierUtils.generateDeviceIdentifier();
-        //Initialize instance of db access
+        LOGGER.debug("Initializing DB helper...");
         DBHelper.initialize();
-        //Start the logging thread
+        LOGGER.debug("Starting logging service...");
         LoggingService.getThread().start();
+        LOGGER.debug("Initializing context manager...");
         ContextManager.initialize();
+        LOGGER.debug("Initializing config manager ...");
         ConfigManager.initialize();
+        LOGGER.debug("Initializing rule manager...");
         RuleManager.initialize();
+        LOGGER.debug("Initializing node manager...");
         NodeManager.initialize();
-        
-        //Initialize the vStore FileNodeMapper
+        LOGGER.debug("Initializing file node mapper...");
         FileNodeMapper.getMapper();
     }
 
@@ -105,6 +119,7 @@ public class VStore {
      */
     public static void initialize(File baseDir, URL masterNodeAddress) throws VStoreException {
         //Initialize VStore instance
+        LOGGER.debug("VStore initialize called");
         if (mInstance == null)
         {
             mInstance = new VStore(baseDir, masterNodeAddress);
@@ -240,6 +255,7 @@ public class VStore {
     public VStoreFile store(String fileUri, boolean isPrivate)
     		throws StoreException 
     {
+        LOGGER.debug("Storing file " + fileUri + ", isPrivate=" + isPrivate);
         if(fileUri == null || fileUri.equals(""))
         {
             throw new StoreException(ErrorCode.PARAMETERS_MUST_NOT_BE_NULL,
@@ -247,7 +263,7 @@ public class VStore {
         }
         
         File file = new File(fileUri);
-               
+               System.out.println(file.getAbsolutePath());
         //Generate new UUID for file
         String uuid = UUID.randomUUID().toString();
         String descriptiveName = file.getName();
@@ -257,12 +273,13 @@ public class VStore {
         //Derive mime type from file extension (is not the best method 
         //but will do for now)
         mimetype = FileUtils.getMimeType(file.getName());
-        
+
         //Get file extension
         int extensionPos = file.getName().lastIndexOf('.');
         if(extensionPos != -1)
         	extension = file.getName().substring(extensionPos + 1);
-      
+
+
         //Copy file into the framework folder and rename it to UUID.extension
         File fCopied;
         try 
@@ -272,11 +289,12 @@ public class VStore {
         } 
         catch (Exception e) 
         {
-        	//Abort in case of copy-error
+        	e.printStackTrace();
+            //Abort in case of copy-error
             throw new StoreException(ErrorCode.COPYING_INTO_FRAMEWORK_FAILED,
                     COPYING_INTO_FRAMEWORK_FAILED);
         }
-        
+      //  System.out.println(fCopied.exists());
         //Compute hash for file
         //TODO: Replace MD5 with something better
         String md5 = Hash.MD5.calculateMD5(fCopied);
@@ -296,7 +314,8 @@ public class VStore {
 		} 
 		catch (FileNotFoundException e) 
 		{
-			throw new StoreException(ErrorCode.FILE_NOT_FOUND, COPIED_FILE_NOT_FOUND);
+			LOGGER.error("Copied file not found!");
+		    throw new StoreException(ErrorCode.FILE_NOT_FOUND, COPIED_FILE_NOT_FOUND);
 		}
         f.setMD5Hash(md5);
         f.setContext(ContextManager.get().getCurrentContext());
@@ -306,16 +325,22 @@ public class VStore {
         LogHandler.logStartForFile(f, vCfg.getMatchingMode());
 
         //Make storage matching decision for the file
+
+
+        long decisionTimeStart = System.nanoTime();
         Matching matching = new Matching(f, vCfg.getMatchingMode());
         List<NodeInfo> targetNodes = matching.getDecidedNodes();
+        long decisionTime = (System.nanoTime() - decisionTimeStart) / 1000000 ;
+        LOGGER.info("Matching took " + decisionTime + "ms");
         
         if(targetNodes != null && targetNodes.size() > 0)
         {
             for(NodeInfo n : targetNodes) {
                 if(n == null) { continue; }
                 f.addStoredNodeId(n.getIdentifier());
+
             }
-            
+
             //Insert information into local database
             try 
             {
@@ -353,9 +378,9 @@ public class VStore {
         }
 
         //Log the decided node (will log null if stored on phone)
-        LogHandler.logDecidedNode(f, ((targetNodes != null) ? targetNodes.get(0) : null));
-        //TODO Update logging to handle a list of multiple storage nodes
 
+        LogHandler.logDecidedNode(f, ((targetNodes != null) ? targetNodes.get(0) : null), decisionTime);
+        //TODO Update logging to handle a list of multiple storage nodes
         return f;
     }
 
@@ -382,6 +407,7 @@ public class VStore {
     {
         if(usageContext == null)
         {
+
             throw new RuntimeException(ErrorMessages.PARAMETERS_MUST_NOT_BE_NULL);
         }
         if(requestId == null || requestId.equals(""))
@@ -502,6 +528,7 @@ public class VStore {
      * Call this when you exit your application to clean up any mess.
      */
     public void clean() {
+        LOGGER.debug("Cleaning up...");
         DBHelper.get().close();
         LoggingService.getThread().askToStop();
         PersistentDownloadList.clear();

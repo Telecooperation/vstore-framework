@@ -14,4 +14,8 @@ public class LogMatchingAddNodeEvent {
      * The NodeInfo of the decided node (can be null if only stored on the phone)
      */
     public NodeInfo node;
+    /**
+     * The time if took for the matching
+     */
+    public long matchingTime;
 }

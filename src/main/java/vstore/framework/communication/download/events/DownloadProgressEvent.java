@@ -1,5 +1,8 @@
 package vstore.framework.communication.download.events;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.net.URI;
 
 import vstore.framework.file.MetaData;
@@ -13,6 +16,8 @@ import vstore.framework.file.MetaData;
  * EventBus.getDefault().removeStickyEvent(event).
  */
 public class DownloadProgressEvent {
+
+    private static final Logger LOGGER = LogManager.getLogger(DownloadProgressEvent.class);
 
     private String mFileUUID;
     private String mRequestId;
@@ -83,6 +88,7 @@ public class DownloadProgressEvent {
         if(mMetaData != null) {
             return mMetaData.getMimeType();
         }
+        LOGGER.warn("Meta data is null");
         return null;
     }
 

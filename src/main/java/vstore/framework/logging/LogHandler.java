@@ -50,7 +50,22 @@ public class LogHandler {
             EventBus.getDefault().post(logEvt3);
         }
 	}
-	
+
+    public static void logDecidedNode(VStoreFile f, NodeInfo targetNode, long time) {
+        LogMatchingAddNodeEvent logEvt2 = new LogMatchingAddNodeEvent();
+        logEvt2.fileId = f.getUuid();
+        logEvt2.node = targetNode;
+        logEvt2.matchingTime = time;
+        EventBus.getDefault().post(logEvt2);
+        if(targetNode == null)
+        {
+            //Post event that logging is done
+            LogMatchingDoneEvent logEvt3 = new LogMatchingDoneEvent();
+            logEvt3.fileUUID = f.getUuid();
+            EventBus.getDefault().post(logEvt3);
+        }
+    }
+
 	public static void logDownloadStart(String uuid, long bytes, String metaJson, String nodeId, NodeType nodetype) {
 		LogDownloadStartEvent logEvt = new LogDownloadStartEvent();
         logEvt.fileId = uuid;

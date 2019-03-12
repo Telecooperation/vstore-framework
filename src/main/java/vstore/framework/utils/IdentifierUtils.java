@@ -2,10 +2,14 @@ package vstore.framework.utils;
 
 import java.io.File;
 import java.util.UUID;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import vstore.framework.file.FileManager;
 
 public class IdentifierUtils {
+
+	private static final Logger LOGGER = LogManager.getLogger(IdentifierUtils.class);
 
     /**
      * Generates the file which contains the device identifier.
@@ -13,6 +17,8 @@ public class IdentifierUtils {
 	public static void generateDeviceIdentifier() {
         if(identifierFileNotExists()) {
             String uuid = getNewUniqueIdentifier();
+            LOGGER.info("Identifier file did not exist, generated new device identifier:" + uuid);
+            LOGGER.debug("Writing device identifier to file...");
             FileUtils.writeStringToFile(uuid, FileManager.get().getVStoreDir(), "device");
         }
 	}
@@ -36,8 +42,11 @@ public class IdentifierUtils {
      */
 	public static String getDeviceIdentifier() {
 		if(identifierFileNotExists()) {
-		    generateDeviceIdentifier();
+		    LOGGER.warn("Device identifier file did not exist upon calling getDeviceIdentifier()");
+			generateDeviceIdentifier();
         }
-	    return FileUtils.readStringFromFile(new File(FileManager.get().getVStoreDir(), "device")).trim();
+	    LOGGER.debug("Getting device identifier from file");
+		String uuid =  FileUtils.readStringFromFile(new File(FileManager.get().getVStoreDir(), "device")).trim();
+		return uuid;
 	}
 }
