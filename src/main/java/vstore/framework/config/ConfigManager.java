@@ -30,7 +30,6 @@ public class ConfigManager {
     
     private NodeManager mNodeManager;
     private static ConfigManager mConfMgrInstance;
-    private static Config mConfig;
 
     /**
      * Creates a vStoreConfig object. Reads the settings from the last configuration saved on disk.
@@ -45,9 +44,8 @@ public class ConfigManager {
         if (mConfMgrInstance == null)
         {
             mConfMgrInstance = new ConfigManager();
-            mConfig = new Config();
-            mConfig.matchingMode = MatchingMode.RULES_NEXT_ON_NO_MATCH;
-            mConfig.multipleNodesPerRule = false;
+            mConfMgrInstance.mMatchingMode = MatchingMode.RULES_NEXT_ON_NO_MATCH;
+            mConfMgrInstance.mMultipleNodesPerRule = false;
         }
     }
 
@@ -121,14 +119,14 @@ public class ConfigManager {
      * decide for multiple nodes to store a file on.
      */
     public boolean isMultipleNodesAllowed() {
-        return mConfig.multipleNodesPerRule;
+        return mMultipleNodesPerRule;
     }
 
     /**
      * @return The matching mode that is currently configured.
      */
     public Matching.MatchingMode getMatchingMode() {
-        return mConfig.matchingMode;
+        return mMatchingMode;
     }
 
     /**
