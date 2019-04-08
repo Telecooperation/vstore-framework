@@ -97,8 +97,7 @@ public class FileUploadThread extends Thread implements ProgressRequestBody.List
 
 			try (Response response = httpClient.newCall(request).execute()) 
 		    {
-		    	//HTTP request was successful (status 2xx)
-		    	if(response.isSuccessful())
+		    	if(response.isSuccessful() || response.code()==409)
 		    	{
 		    		//Check if upload was also successful 
 		    		//(checking the JSON answer from the storage node)
@@ -115,20 +114,19 @@ public class FileUploadThread extends Thread implements ProgressRequestBody.List
 						e.printStackTrace();
 						invalidResponse = true;
 					}
-		    		
 		            if (!invalidResponse && JsonUtils.getIntFromJson("error", j, 1) == 0)
 					{
 		                //Upload successful.
 		                //Update the row in the database:
 		                //(upload_pending = false, upload_failed = false)
-		                try 
+		                try
 		                {
 							FileDBHelper.updateFile(qObject.fileId, false, false, false);
 
                             //TODO What to do if the file was uploaded, but the file-node-mapping update failed?
                             CommunicationManager.postFileNodeMapping(qObject.fileId, node_id);
-						} 
-		                catch (SQLException e) 
+						}
+		                catch (SQLException e)
 		                {
 		                	//Upload successful, but updating the database failed.
 		                	//Should never happen
@@ -137,7 +135,27 @@ public class FileUploadThread extends Thread implements ProgressRequestBody.List
 		                uploadDone(node_id);
 		                return;
 		            }
-		            else 
+		            else if (!invalidResponse && JsonUtils.getIntFromJson("error", j, 1) == 1 && JsonUtils.getStringFromJson("error_msg", j,"").contains("already exists")) {
+						//Upload successful.
+						//Update the row in the database:
+						//(upload_pending = false, upload_failed = false)
+						try
+						{
+							FileDBHelper.updateFile(qObject.fileId, false, false, false);
+
+							//TODO What to do if the file was uploaded, but the file-node-mapping update failed?
+							CommunicationManager.postFileNodeMapping(qObject.fileId, node_id);
+						}
+						catch (SQLException e)
+						{
+							//Upload successful, but updating the database failed.
+							//Should never happen
+							e.printStackTrace();
+						}
+						uploadDone(node_id);
+						return;
+		            }
+		            else
 		            {
 		                //Upload not successful, node replied with an error.
 		                //Update the row in the database:
