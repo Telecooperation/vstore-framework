@@ -1,14 +1,14 @@
 # vStore - A Context-Aware Framework for Mobile Micro-Storage at the Edge
 ## Authors
 
-**Project leader:** 
+**Project leader:**
 [Julien Gedeon](https://www.informatik.tu-darmstadt.de/telekooperation/telecooperation_group/staff_1/staff_1_details_23872.en.jsp)
 
 **Contributors:**
 Nicolas Himmelmann, Michael Stein, Fabian Herrlich, Max Mühlhäuser
 
 ## Publication
-Our research on *vStore* was published and awarded best paper at the 2018 MobiCASE conference. If you use our framework, please consider citing the following paper: 
+Our research on *vStore* was published and awarded best paper at the 2018 MobiCASE conference. If you use our framework, please consider citing the following paper:
 
 J. Gedeon, N. Himmelmann, P. Felka, F. Herrlich, M. Stein, M. Mühlhäuser. "vStore: A Context-Aware Framework for Mobile Micro-Storage at the Edge" [[PDF]](https://fileserver.tk.informatik.tu-darmstadt.de/JG/vstore/gedeon_vstore.pdf)  [[BibTeX]](https://fileserver.tk.informatik.tu-darmstadt.de/JG/vstore/vstore.bib)
 
@@ -20,7 +20,7 @@ J. Gedeon, N. Himmelmann, P. Felka, F. Herrlich, M. Stein, M. Mühlhäuser. "vSt
 
 [Quickstart](#quickstart)
 
-[Library dependencies](#library-dependencies)
+[Dependencies](#dependencies)
 
 ## What is it?
 
@@ -155,11 +155,11 @@ UploadFailedPermanentlyEvent - Published, when the upload failed permanently (af
 
 
 
-## Library dependencies
+## Dependencies
 
 - https://code.google.com/archive/p/json-simple/
-- OkHTTP3
-- GreenRobot EventBus
+- [OkHTTP3] (https://github.com/square/okhttp)
+- [GreenRobot EventBus] (https://github.com/greenrobot/EventBus)
 
 
 For further information, please see the documentation created by JavaDoc, or refer to the sample application for Android (vstore-android-filebox).
